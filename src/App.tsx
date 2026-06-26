@@ -1,7 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { PlannerProvider } from './context/PlannerContext';
 import Header from './components/Header';
-import HomePage from './pages/HomePage';
+// HomePage kept in project but bypassed from public flow — redirected to /intro
+// import HomePage from './pages/HomePage';
 import IntroPage from './pages/IntroPage';
 import ObjectivePage from './pages/ObjectivePage';
 import InvestmentPage from './pages/InvestmentPage';
@@ -31,7 +32,7 @@ function AppLayout() {
       <Header />
       <main className="flex-1">
         <Routes>
-          <Route path="/"             element={<HomePage />} />
+          <Route path="/"             element={<Navigate to="/intro" replace />} />
           <Route path="/intro"        element={<IntroPage />} />
           <Route path="/objective"    element={<ObjectivePage />} />
           <Route path="/investment"   element={<InvestmentPage />} />
@@ -53,7 +54,7 @@ function AppLayout() {
           <Route path="/admin/leads"   element={<AdminLeadsPage />} />
           <Route path="/admin/messages" element={<AdminMessagesPage />} />
           {/* Fallback */}
-          <Route path="*"             element={<Navigate to="/" replace />} />
+          <Route path="*"             element={<Navigate to="/intro" replace />} />
         </Routes>
       </main>
     </div>
