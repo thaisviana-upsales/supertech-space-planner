@@ -1,0 +1,242 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Base Reset ─────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 15px; /* Compact app scale — reduces all rem values ~6% vs browser default */
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: #0d1117;
+  color: #e2e8f0;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Mobile / Touch global ──────────────────────────────── */
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;  /* no horizontal scroll on any screen */
+}
+
+/* iOS smooth scrolling */
+* {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Remove tap highlight on mobile */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Min touch target global hint */
+button, [role="button"], a {
+  touch-action: manipulation; /* faster tap, no double-tap zoom */
+}
+
+/* ── Scrollbar ──────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0d1117;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a3a52;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #00d966;
+}
+
+/* ── Selection ──────────────────────────────────────────── */
+::selection {
+  background-color: rgba(0, 217, 102, 0.25);
+  color: #fff;
+}
+
+/* ── Focus ring ─────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid #00d966;
+  outline-offset: 2px;
+}
+
+/* ── Typography scale ─────────────────────────────── */
+/* App-level type scale — prevents LP-scale headings */
+.text-page-hero   { font-size: clamp(1.25rem, 3.5vw, 1.65rem);  line-height: 1.15; }
+.text-page-title  { font-size: clamp(1.1rem,  2.8vw, 1.45rem);  line-height: 1.2;  }
+.text-step-label  { font-size: 0.625rem; letter-spacing: 0.13em; font-weight: 700; text-transform: uppercase; }
+.text-card-title  { font-size: 0.875rem; font-weight: 700; line-height: 1.3; }
+.text-body        { font-size: 0.875rem; line-height: 1.55; }
+.text-micro       { font-size: 0.75rem;  line-height: 1.4; }
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #f1f5f9;
+}
+
+/* ── Layer: Components ──────────────────────────────────── */
+@layer components {
+
+  /* Buttons */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm
+           bg-gradient-to-r from-supertech-500 to-supertech-400
+           text-dark-950 transition-all duration-200
+           hover:shadow-green-glow hover:scale-[1.02] active:scale-[0.98]
+           focus-visible:ring-2 focus-visible:ring-supertech-400 focus-visible:ring-offset-2 focus-visible:ring-offset-dark-900
+           disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm
+           bg-surface-elevated text-slate-200 border border-surface-border
+           transition-all duration-200
+           hover:bg-surface-hover hover:border-supertech-600 hover:text-white
+           active:scale-[0.98]
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium text-sm
+           text-slate-400 transition-all duration-200
+           hover:text-white hover:bg-surface-elevated
+           active:scale-[0.98];
+  }
+
+  /* Cards */
+  .card {
+    @apply bg-surface-card rounded-2xl border border-surface-border shadow-card;
+  }
+
+  .card-elevated {
+    @apply bg-surface-elevated rounded-2xl border border-surface-border shadow-card;
+  }
+
+  .card-interactive {
+    @apply card cursor-pointer transition-all duration-200
+           hover:border-supertech-700 hover:shadow-card-hover hover:bg-surface-elevated;
+  }
+
+  .card-selected {
+    @apply bg-surface-elevated rounded-2xl border-2 border-supertech-500 shadow-green-glow;
+  }
+
+  /* Input */
+  .input-dark {
+    @apply w-full px-4 py-3 rounded-xl bg-surface-card border border-surface-border
+           text-slate-100 placeholder-slate-500 text-sm
+           transition-all duration-200
+           focus:outline-none focus:border-supertech-500 focus:ring-1 focus:ring-supertech-500/50
+           hover:border-surface-hover;
+  }
+
+  /* Badge */
+  .badge-green {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold
+           bg-supertech-500/15 text-supertech-400 border border-supertech-500/25;
+  }
+
+  .badge-dark {
+    @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium
+           bg-surface-elevated text-slate-400 border border-surface-border;
+  }
+
+  /* Divider */
+  .divider {
+    @apply border-t border-surface-border;
+  }
+
+  /* Section label */
+  .label-upper {
+    @apply text-xs font-semibold uppercase tracking-widest text-supertech-500;
+  }
+
+  /* Glass effect */
+  .glass {
+    @apply backdrop-blur-xl bg-white/[0.03] border border-white/[0.06];
+  }
+}
+
+/* ── Gradient backgrounds ───────────────────────────────── */
+.bg-app {
+  background: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(0,120,50,0.12) 0%, transparent 60%),
+              linear-gradient(180deg, #0d1117 0%, #090d12 100%);
+  min-height: 100vh;
+}
+
+/* ── Stepper line animation ─────────────────────────────── */
+.step-line-active {
+  background: linear-gradient(90deg, #00d966 0%, #2bef87 100%);
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Page transition ────────────────────────────────────── */
+.page-enter {
+  animation: pageEnter 0.35s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Loading spinner ────────────────────────────────────── */
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(0,217,102,0.2);
+  border-top-color: #00d966;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Tooltip ────────────────────────────────────────────── */
+[data-tooltip] {
+  position: relative;
+}
+[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1f2d42;
+  border: 1px solid #2a3a52;
+  color: #e2e8f0;
+  font-size: 0.75rem;
+  padding: 6px 10px;
+  border-radius: 8px;
+  white-space: nowrap;
+  z-index: 50;
+  pointer-events: none;
+}

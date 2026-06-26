@@ -1,0 +1,27 @@
+{
+  "name": "Space Planner - Admin",
+  "short_name": "SP Admin",
+  "description": "Painel administrativo do Supertech Space Planner™ — acompanhe leads e prévias comerciais.",
+  "start_url": "/admin/leads",
+  "scope": "/admin/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#0D0D0D",
+  "background_color": "#0D0D0D",
+  "lang": "pt-BR",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/admin-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/admin-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
