@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MessageCircle, X, RefreshCw } from 'lucide-react';
+import { MessageCircle, X, RefreshCw, Trash2 } from 'lucide-react';
 import {
   readLeads, ensureMockSeeded,
   getLastStepLabel, formatDateTime,
@@ -157,6 +157,13 @@ export default function AdminLeadsPage() {
     setLeads(readLeads());
   }
 
+  function handleClearAll() {
+    if (!window.confirm('⚠️ Isso vai apagar TODOS os leads do painel permanentemente. Continuar?')) return;
+    localStorage.removeItem('ssp_leads');
+    localStorage.removeItem('ssp_leads_seeded');
+    setLeads([]);
+  }
+
   function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     if (password === ADMIN_PASSWORD) {
@@ -264,6 +271,13 @@ export default function AdminLeadsPage() {
           <AdminNav active="leads" />
           <button onClick={handleRefresh} className="text-slate-500 text-sm hover:text-white transition-colors flex items-center gap-1.5">
             <RefreshCw size={13} /> Atualizar
+          </button>
+          <button
+            onClick={handleClearAll}
+            className="flex items-center gap-1.5 text-sm text-red-500 hover:text-red-400 transition-colors"
+            title="Apagar todos os leads"
+          >
+            <Trash2 size={13} /> Zerar dados
           </button>
           <button onClick={handleLogout} className="text-slate-500 text-sm hover:text-white transition-colors">Sair</button>
         </div>
