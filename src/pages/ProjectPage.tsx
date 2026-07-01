@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Minus, Plus, Trash2, MessageCircle, Activity, Dumbbell, Zap } from 'lucide-react';
 import { usePlanner } from '../context/PlannerContext';
 import { formatPrice } from '../data/catalog';
-import { CONSULTOR_WHATSAPP } from '../constants';
+import { resolveWhatsappDestination } from '../data/whatsappRouting';
 import type { Equipment } from '../types';
 
 // ── Investment tier → project profile label ───────────────────────────────────
@@ -313,7 +313,18 @@ export default function ProjectPage() {
               </button>
 
               <button
-                onClick={() => window.open(`https://wa.me/${CONSULTOR_WHATSAPP}?text=${buildWAMessage(state)}`, '_blank')}
+                onClick={() => {
+                  const { data } = state;
+                  const destination = resolveWhatsappDestination({
+                    phone:        data.phone,
+                    city:         data.city,
+                    uf:           data.uf,
+                    codigoPrevia: data.codigoPrevia,
+                  });
+                  console.log('Lead data para roteamento (ProjectPage):', { phone: data.phone, city: data.city, uf: data.uf });
+                  console.log('Destino WhatsApp resolvido (ProjectPage):', destination);
+                  window.open(`https://wa.me/${destination.whatsapp}?text=${buildWAMessage(state)}`, '_blank');
+                }}
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-lg font-semibold text-[13px] border transition-all hover:bg-white/[0.04]"
                 style={{ background: 'transparent', borderColor: '#8BC34A', color: 'rgba(255,255,255,0.75)' }}
               >

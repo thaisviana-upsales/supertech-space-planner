@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Eye, Send, MapPin, Package, Target, DollarSign, Clock, User, Zap } from 'lucide-react';
 import { usePlanner } from '../context/PlannerContext';
-import { CONSULTOR_WHATSAPP } from '../constants';
+import { resolveWhatsappDestination, openWhatsappWithDestination } from '../data/whatsappRouting';
 import StepHeader from '../components/StepHeader';
 
 function buildWhatsAppMessage(data: ReturnType<typeof usePlanner>['state']['data']): string {
@@ -35,9 +35,19 @@ export default function PreviaPage() {
 
   function handleSendWhatsApp() {
     const msg = buildWhatsAppMessage(data);
-    const encoded = encodeURIComponent(msg);
-    const url = `https://api.whatsapp.com/send?phone=${CONSULTOR_WHATSAPP}&text=${encoded}`;
-    window.open(url, '_blank', 'noopener,noreferrer');
+
+    // ── Resolver destino pelo roteamento (DDD > cidade/UF > UF > fallback) ──
+    const destination = resolveWhatsappDestination({
+      phone:        data.phone,
+      city:         data.city,
+      uf:           data.uf,
+      codigoPrevia: data.codigoPrevia,
+    });
+
+    console.log('Lead data para roteamento (PreviaPage):', { phone: data.phone, city: data.city, uf: data.uf });
+    console.log('Destino WhatsApp resolvido (PreviaPage):', destination);
+
+    openWhatsappWithDestination(destination, msg);
     markSent();
     setTimeout(() => {
       navigate('/confirmation');

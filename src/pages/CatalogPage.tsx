@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { usePlanner } from '../context/PlannerContext';
 import { CATALOG, formatPrice, type TabKey, type CatalogProduct } from '../data/catalog';
-import { CONSULTOR_WHATSAPP } from '../constants';
+import { resolveWhatsappDestination } from '../data/whatsappRouting';
 import { saveEquipmentsToSheets } from '../services/googleSheets';
 
 // ── Category icon fallback ─────────────────────────────────────────────────────
@@ -365,6 +365,18 @@ export default function CatalogPage() {
 
   function handleSendConsultor() {
     const { data } = state;
+
+    // ── Resolver destino pelo roteamento (DDD > cidade/UF > UF > fallback) ──
+    const destination = resolveWhatsappDestination({
+      phone:        data.phone,
+      city:         data.city,
+      uf:           data.uf,
+      codigoPrevia: data.codigoPrevia,
+    });
+
+    console.log('Lead data para roteamento (CatalogPage):', { phone: data.phone, city: data.city, uf: data.uf });
+    console.log('Destino WhatsApp resolvido (CatalogPage):', destination);
+
     const items = selected.map(e => `• ${e.name} (×${e.quantity}) — ${formatPrice(e.price * e.quantity)}`).join('\n');
     const msg = encodeURIComponent(
       `Olá! Minha prévia do Space Planner:\n\n` +
@@ -373,7 +385,7 @@ export default function CatalogPage() {
       `*Prazo:* ${data.deadlineLabel ?? '-'}\n*Cidade:* ${data.uf ?? '-'} / ${data.city ?? '-'}\n\n` +
       `*Equipamentos:*\n${items}\n\n*Estimativa: ${formatPrice(total)}*`
     );
-    window.open(`https://wa.me/${CONSULTOR_WHATSAPP}?text=${msg}`, '_blank');
+    window.open(`https://wa.me/${destination.whatsapp}?text=${msg}`, '_blank');
   }
 
   const products = CATALOG[activeTab];

@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Zap, Clock, CalendarDays, Calendar, CalendarClock, Search, MessageCircle } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { usePlanner } from '../context/PlannerContext';
-import { CONSULTOR_WHATSAPP } from '../constants';
+import { resolveWhatsappDestination } from '../data/whatsappRouting';
 import SelectableCard from '../components/SelectableCard';
 import { saveEventToSheets } from '../services/googleSheets';
 
@@ -104,8 +104,19 @@ export default function DeadlinePage() {
   }
 
   function handleConsultor() {
+    const { data } = state;
+    const destination = resolveWhatsappDestination({
+      phone:        data.phone,
+      city:         data.city,
+      uf:           data.uf,
+      codigoPrevia: data.codigoPrevia,
+    });
+
+    console.log('Lead data para roteamento (DeadlinePage):', { phone: data.phone, city: data.city, uf: data.uf });
+    console.log('Destino WhatsApp resolvido (DeadlinePage):', destination);
+
     const msg = encodeURIComponent('Olá! Quero negociar direto com um consultor Supertech.');
-    window.open(`https://wa.me/${CONSULTOR_WHATSAPP}?text=${msg}`, '_blank');
+    window.open(`https://wa.me/${destination.whatsapp}?text=${msg}`, '_blank');
   }
 
   return (

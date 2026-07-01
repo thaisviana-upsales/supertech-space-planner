@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowRight, Bot, MessageCircle, Check } from 'lucide-react';
 import { usePlanner } from '../context/PlannerContext';
 import { BRAZIL_LOCATIONS, getCitiesByUF } from '../data/brazilLocations';
 import { saveLeadToSheets, saveEventToSheets } from '../services/googleSheets';
-import { CONSULTOR_WHATSAPP } from '../constants';
+import { resolveWhatsappDestination } from '../data/whatsappRouting';
 
 // ── Sub-step config ───────────────────────────────────────────────────────────
 type SubStep = 1 | 2 | 3 | 4;
@@ -183,8 +183,23 @@ export default function LeadPage() {
   }
 
   function handleConsultor() {
+    // Usar dados já informados pelo lead para rotear corretamente
+    const phoneRaw = phone || state.data.phone || '';
+    const ufRaw   = uf   || state.data.uf   || '';
+    const cityRaw = city || state.data.city || '';
+
+    const destination = resolveWhatsappDestination({
+      phone: phoneRaw,
+      city:  cityRaw,
+      uf:    ufRaw,
+      codigoPrevia: state.data.codigoPrevia,
+    });
+
+    console.log('Lead data para roteamento (LeadPage):', { phone: phoneRaw, city: cityRaw, uf: ufRaw });
+    console.log('Destino WhatsApp resolvido (LeadPage):', destination);
+
     const msg = encodeURIComponent('Olá! Quero negociar direto com um consultor Supertech.');
-    window.open(`https://wa.me/${CONSULTOR_WHATSAPP}?text=${msg}`, '_blank');
+    window.open(`https://wa.me/${destination.whatsapp}?text=${msg}`, '_blank');
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
