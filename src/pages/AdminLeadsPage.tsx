@@ -188,17 +188,10 @@ export default function AdminLeadsPage() {
     setSortFilter('recent'); setVendedorFilter('Todos');
   }
 
-  // KPIs
-  const kpiTotal    = leads.length;
-  const kpiSent     = leads.filter(l => l.sentToConsultor).length;
-  const kpiComplete = leads.filter(l => l.lastStepNum >= 6 && !l.sentToConsultor).length;
-  const kpiAbandoned = kpiTotal - kpiSent - kpiComplete;
-
-  // Filtered + sorted leads
+  // ── Filtered + sorted leads (calculado ANTES dos KPIs) ──────────────────────
   const filtered = useMemo(() => {
     let out = [...leads];
 
-    if (!matchesDate(out[0] ?? { createdAt: '' } as LeadRecord, 'x')) {} // noop
     out = out.filter(l => matchesDate(l, dateFilter));
 
     if (cityFilter.trim())
@@ -236,6 +229,18 @@ export default function AdminLeadsPage() {
 
     return out;
   }, [leads, dateFilter, cityFilter, ufFilter, segFilter, investFilter, valMin, valMax, etapaFilter, statusFilter, sortFilter, vendedorFilter]);
+
+  // ── KPIs — calculados sobre `filtered`, não sobre `leads` ─────────────────
+  //
+  // totalAcessos   = todos os leads no filtro atual
+  // preencheramTudo = chegou à etapa de revisão/visualização (step >= 7) OU enviou
+  // enviaramConsultor = sentToConsultor === true
+  // abandonaram    = totalAcessos - enviaramConsultor
+  //   (quem preencheu tudo mas não enviou é abandono tardio — conta em abandonaram)
+  const kpiTotal     = filtered.length;
+  const kpiSent      = filtered.filter(l => l.sentToConsultor).length;
+  const kpiComplete  = filtered.filter(l => l.lastStepNum >= 7 || l.sentToConsultor).length;
+  const kpiAbandoned = Math.max(0, kpiTotal - kpiSent);
 
   // ── Login ──────────────────────────────────────────────────────────────────
   if (!authed) {
@@ -290,7 +295,7 @@ export default function AdminLeadsPage() {
           <KpiCard label="Total de acessos"      value={kpiTotal}    />
           <KpiCard label="Preencheram tudo"       value={kpiComplete} />
           <KpiCard label="Enviaram ao consultor"  value={kpiSent}     accent />
-          <KpiCard label="Abandonaram"            value={Math.max(0, kpiAbandoned)} />
+          <KpiCard label="Abandonaram"            value={kpiAbandoned} />
         </div>
 
         {/* Filters */}
@@ -472,7 +477,7 @@ export default function AdminLeadsPage() {
           {/* Table footer */}
           <div className="px-4 py-3 border-t border-surface-border flex items-center justify-between">
             <span className="text-xs text-slate-600">{filtered.length} lead{filtered.length !== 1 ? 's' : ''} exibido{filtered.length !== 1 ? 's' : ''}</span>
-            <span className="text-xs text-slate-700">Total no banco: {kpiTotal}</span>
+            <span className="text-xs text-slate-700">Total no banco: {leads.length}</span>
           </div>
         </div>
 
