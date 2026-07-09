@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { usePlanner } from '../context/PlannerContext';
 import { generatePDF } from '../utils/generatePDF';
-import { saveLeadFromData } from '../utils/leadStorage';
+import { upsertLeadFromData } from '../utils/leadStorage';
 import { updateLeadStatusToSheets, saveEventToSheets } from '../services/googleSheets';
 import {
   resolveWhatsappDestination,
@@ -63,7 +63,7 @@ export default function ConfirmacaoPage() {
   useEffect(() => {
     if (savedRef.current) return;
     savedRef.current = true;
-    saveLeadFromData(data, data.sentToConsultor ? 8 : 7);
+    upsertLeadFromData(data, 7);
 
     // Save final status to Google Sheets (non-blocking)
     updateLeadStatusToSheets({

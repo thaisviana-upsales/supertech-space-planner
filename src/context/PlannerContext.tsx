@@ -90,7 +90,7 @@ function reducer(state: PlannerState, action: Action): PlannerState {
       };
 
     case 'RESET':
-      return { ...initialState, data: {} };
+      return { ...initialState, data: buildInitialData() };
 
     default:
       return state;
