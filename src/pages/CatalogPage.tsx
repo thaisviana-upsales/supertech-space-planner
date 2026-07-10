@@ -38,6 +38,11 @@ const CardImage = ({ src, alt, cat, onClick }: CardImageProps) => {
   const [failed, setFailed] = useState(false);
   const hasImage = src && !failed;
 
+  // Diagnostic log (remove after confirming)
+  if (typeof window !== 'undefined') {
+    console.log('IMAGE CARD COMPONENT USED', { src, hasImage });
+  }
+
   return (
     <div
       onClick={hasImage ? onClick : undefined}
@@ -47,11 +52,12 @@ const CardImage = ({ src, alt, cat, onClick }: CardImageProps) => {
         flexShrink: 0,
         position: 'relative',
         overflow: 'hidden',
-        // Premium neutral background — lighter than page, not pure white
+        // Fundo VISIVELMENTE mais claro — cinza esverdeado opaco
         background: hasImage
-          ? 'radial-gradient(ellipse 90% 90% at 50% 50%, rgba(200,215,190,0.13) 0%, rgba(40,52,38,0.82) 55%, rgba(18,24,18,0.96) 100%)'
-          : 'rgba(255,255,255,0.04)',
-        borderRight: '1px solid rgba(255,255,255,0.06)',
+          ? 'radial-gradient(circle at 50% 45%, rgba(210,230,180,0.55) 0%, rgba(110,130,90,0.60) 42%, rgba(38,50,36,0.96) 100%)'
+          : 'rgba(255,255,255,0.05)',
+        borderRight: '1px solid rgba(163,214,67,0.18)',
+        boxShadow: hasImage ? 'inset 0 0 20px rgba(163,214,67,0.07)' : 'none',
         cursor: hasImage ? 'zoom-in' : 'default',
         transition: 'background 0.2s',
       }}
@@ -80,7 +86,7 @@ const CardImage = ({ src, alt, cat, onClick }: CardImageProps) => {
             transition: 'opacity 0.2s',
             pointerEvents: 'none',
           }} className="catalog-zoom-hint">
-            <ZoomIn size={13} color="rgba(139,195,74,0.8)" strokeWidth={2} />
+            <ZoomIn size={13} color="rgba(163,214,67,0.9)" strokeWidth={2} />
           </div>
         </>
       ) : (
@@ -122,53 +128,49 @@ const Lightbox = ({ product, onClose }: LightboxProps) => {
 
   const hasImg = !!product.imageUrl && !imgFailed;
 
+  // Diagnostic log (remove after confirming)
+  console.log('ZOOM MODAL COMPONENT USED', { product: product.name, hasImg });
+
   return (
     <div
       onClick={onClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        // Overlay — add padding so modal never touches screen edges
-        padding: 'clamp(8px, 2.5vw, 20px)',
+        padding: '16px',
         background: visible ? 'rgba(4,8,4,0.90)' : 'rgba(4,8,4,0)',
         backdropFilter: visible ? 'blur(14px)' : 'blur(0px)',
         transition: 'background 0.28s ease, backdrop-filter 0.28s ease',
       }}
     >
-      {/* Modal card */}
+      {/* Modal card — largura e altura EXPLÍCITAS para não cortar */}
       <div
         onClick={e => e.stopPropagation()}
         className="lb-modal"
         style={{
           background: 'linear-gradient(160deg, rgba(24,34,22,0.98) 0%, rgba(10,15,10,0.99) 100%)',
-          border: '1px solid rgba(139,195,74,0.22)',
-          borderRadius: '22px',
-          boxShadow: [
-            '0 40px 100px rgba(0,0,0,0.80)',
-            '0 0 0 1px rgba(255,255,255,0.04)',
-            'inset 0 1px 0 rgba(255,255,255,0.06)',
-          ].join(', '),
-          // Responsive sizing
-          width: '100%',
-          maxWidth: 'min(90vw, 840px)',
-          // Height = viewport minus overlay padding; flex children handle the rest
-          maxHeight: 'min(88vh, 760px)',
+          border: '1px solid rgba(163,214,67,0.25)',
+          borderRadius: '20px',
+          boxShadow: '0 40px 100px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.06)',
+          width: 'min(92vw, 860px)',
+          // Altura FIXA e explícita — não depende de flex shrink
+          height: 'min(90vh, 740px)',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
-          // Scale + fade entrance
           transform: visible ? 'scale(1) translateY(0)' : 'scale(0.94) translateY(18px)',
           opacity: visible ? 1 : 0,
           transition: 'transform 0.30s cubic-bezier(0.34,1.28,0.64,1), opacity 0.26s ease',
         }}
       >
-        {/* ── Header ── */}
+        {/* ── Header (altura fixa ~65px) ── */}
         <div style={{
-          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-          padding: '16px 20px 13px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '14px 20px',
           borderBottom: '1px solid rgba(255,255,255,0.07)',
           flexShrink: 0,
           gap: '12px',
+          minHeight: '65px',
         }}>
           <div style={{ minWidth: 0, flex: 1 }}>
             <p style={{
@@ -178,13 +180,13 @@ const Lightbox = ({ product, onClose }: LightboxProps) => {
               {product.categoryLabel}
             </p>
             <p style={{
-              fontSize: '16px', fontWeight: 800, color: '#fff',
-              lineHeight: 1.2, marginBottom: '2px',
+              fontSize: '15px', fontWeight: 800, color: '#fff',
+              lineHeight: 1.2,
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
               {product.name}
             </p>
-            <p style={{ fontSize: '10.5px', color: 'rgba(255,255,255,0.30)', fontFamily: 'monospace' }}>
+            <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.28)', fontFamily: 'monospace', marginTop: '2px' }}>
               {product.code}
             </p>
           </div>
@@ -195,11 +197,11 @@ const Lightbox = ({ product, onClose }: LightboxProps) => {
             style={{
               flexShrink: 0,
               background: 'rgba(255,255,255,0.08)',
-              border: '1px solid rgba(255,255,255,0.13)',
+              border: '1px solid rgba(255,255,255,0.14)',
               borderRadius: '10px',
               padding: '8px',
               cursor: 'pointer',
-              color: 'rgba(255,255,255,0.60)',
+              color: 'rgba(255,255,255,0.65)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               transition: 'all 0.15s',
             }}
@@ -209,47 +211,41 @@ const Lightbox = ({ product, onClose }: LightboxProps) => {
             }}
             onMouseLeave={e => {
               (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.08)';
-              (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.60)';
+              (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.65)';
             }}
           >
             <X size={17} strokeWidth={2.5} />
           </button>
         </div>
 
-        {/* ── Image area — flex:1 + minHeight:0 lets it shrink correctly ── */}
+        {/*
+         * ── Área da imagem — ocupa TUDO entre header e footer ──
+         * flex:1 + overflow:visible = a imagem nunca é cortada pelo container
+         * A imagem usa max-width/max-height 100% para não sair do frame
+         */}
         <div
           className="image-zoom-frame"
           style={{
             flex: 1,
-            minHeight: 0,   // critical: allows flex child to shrink below intrinsic size
+            minHeight: 0,
             position: 'relative',
-            // Premium neutral background — lighter centre, dark edges
-            background: [
-              'radial-gradient(ellipse 70% 70% at 50% 48%, rgba(195,220,170,0.14) 0%, rgba(42,58,38,0.80) 52%, rgba(10,14,10,1) 100%)',
-            ].join(', '),
+            // Fundo REALMENTE mais claro — cinza esverdeado visível no centro
+            background: 'radial-gradient(circle at 50% 48%, rgba(210,230,180,0.45) 0%, rgba(90,110,76,0.55) 38%, rgba(22,32,20,0.98) 100%)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            // Enough padding so image never touches edges, but not so much it wastes space
-            padding: 'clamp(16px, 3vw, 28px)',
-            overflow: 'hidden',
+            padding: '20px',
+            // overflow visible: imagem não é cortada pelo container
+            overflow: 'visible',
           }}
         >
-          {/* Subtle dot texture */}
-          <div style={{
-            position: 'absolute', inset: 0,
-            backgroundImage: 'radial-gradient(circle, rgba(139,195,74,0.06) 1px, transparent 1px)',
-            backgroundSize: '32px 32px',
-            pointerEvents: 'none',
-          }} />
-
           {hasImg ? (
             <img
               src={encodeImagePath(product.imageUrl!)}
               alt={product.name}
               onError={() => setImgFailed(true)}
               style={{
-                // Key: constrain to parent without cropping
+                // Imagem se adapta ao espaço disponível SEM CORTAR
                 maxWidth: '100%',
                 maxHeight: '100%',
                 width: 'auto',
@@ -257,11 +253,8 @@ const Lightbox = ({ product, onClose }: LightboxProps) => {
                 objectFit: 'contain',
                 objectPosition: 'center',
                 display: 'block',
-                position: 'relative', // above texture overlay
-                filter: [
-                  'drop-shadow(0 14px 44px rgba(0,0,0,0.55))',
-                  'drop-shadow(0 2px 6px rgba(0,0,0,0.25))',
-                ].join(' '),
+                position: 'relative',
+                filter: 'drop-shadow(0 12px 40px rgba(0,0,0,0.5))',
                 opacity: visible ? 1 : 0,
                 transition: 'opacity 0.35s ease 0.12s',
               }}
@@ -271,15 +264,16 @@ const Lightbox = ({ product, onClose }: LightboxProps) => {
           )}
         </div>
 
-        {/* ── Footer ── */}
+        {/* ── Footer (altura fixa ~56px) ── */}
         <div style={{
           flexShrink: 0,
-          padding: '12px 20px 16px',
+          padding: '12px 20px',
           borderTop: '1px solid rgba(255,255,255,0.07)',
           display: 'flex', alignItems: 'center',
           justifyContent: 'space-between', gap: '12px',
           flexWrap: 'wrap',
-          background: 'rgba(0,0,0,0.18)',
+          background: 'rgba(0,0,0,0.20)',
+          minHeight: '56px',
         }}>
           <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
             {product.bateriaKg && product.bateriaKg !== 'X' && (
@@ -293,10 +287,7 @@ const Lightbox = ({ product, onClose }: LightboxProps) => {
               <p style={{ fontSize: '18px', color: '#8BC34A', fontWeight: 900, letterSpacing: '-0.02em' }}>{formatPrice(product.price)}</p>
             </div>
           </div>
-          <p style={{
-            fontSize: '10px', color: 'rgba(255,255,255,0.18)',
-            lineHeight: 1.5, textAlign: 'right',
-          }}>
+          <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.16)', textAlign: 'right' }}>
             ESC ou clique fora para fechar
           </p>
         </div>

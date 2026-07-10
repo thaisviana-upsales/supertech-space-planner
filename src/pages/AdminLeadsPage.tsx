@@ -242,13 +242,12 @@ export default function AdminLeadsPage() {
   const kpiComplete  = filtered.filter(l => l.lastStepNum >= 7 || l.sentToConsultor).length;
   const kpiAbandoned = Math.max(0, kpiTotal - kpiSent);
 
-  // ── Diagnóstico (apenas em desenvolvimento) ───────────────────────────────
-  if (import.meta.env.DEV) {
-    console.log('[AdminLeads] leads no banco (deduplicados):', leads.length);
-    console.log('[AdminLeads] leads filtrados:', filtered.length);
-    console.log('[AdminLeads] métricas:', { kpiTotal, kpiComplete, kpiSent, kpiAbandoned });
-    if (filtered.length > 0) console.log('[AdminLeads] sample lead:', filtered[0]);
-  }
+  // ── Diagnóstico — sempre ativo para confirmar dados em produção ──────────────
+  console.log('[AdminLeads] leads no banco (deduplicados):', leads.length);
+  console.log('[AdminLeads] leads filtrados:', filtered.length);
+  console.log('[AdminLeads] métricas:', { kpiTotal, kpiComplete, kpiSent, kpiAbandoned });
+  if (filtered.length > 0) console.log('[AdminLeads] sample lead:', filtered[0]);
+  if (leads.length > 0) console.log('[AdminLeads] raw leads[0]:', leads[0]);
 
   // ── Login ──────────────────────────────────────────────────────────────────
   if (!authed) {
