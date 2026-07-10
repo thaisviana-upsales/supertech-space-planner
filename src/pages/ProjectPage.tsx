@@ -48,13 +48,16 @@ function ProductImg({ src, category }: { src?: string; category: string }) {
   return (
     <div
       className="w-[100px] sm:w-[120px] shrink-0 self-stretch rounded-l-xl overflow-hidden"
-      style={{ background: 'rgba(255,255,255,0.03)' }}
+      style={{
+        // Premium neutral background — same as catalog cards
+        background: 'radial-gradient(ellipse 90% 90% at 50% 50%, rgba(200,215,190,0.13) 0%, rgba(40,52,38,0.82) 55%, rgba(18,24,18,0.96) 100%)',
+      }}
     >
       <img
         src={encodeImagePath(src)}
         alt={category}
         onError={() => setFailed(true)}
-        style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center', background: 'transparent', padding: '8px' }}
+        style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center', background: 'transparent', padding: '10px' }}
       />
     </div>
   );

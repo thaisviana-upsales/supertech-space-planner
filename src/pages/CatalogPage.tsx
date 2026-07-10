@@ -47,10 +47,11 @@ const CardImage = ({ src, alt, cat, onClick }: CardImageProps) => {
         flexShrink: 0,
         position: 'relative',
         overflow: 'hidden',
+        // Premium neutral background — lighter than page, not pure white
         background: hasImage
-          ? 'radial-gradient(ellipse 80% 80% at 50% 50%, rgba(139,195,74,0.07) 0%, rgba(12,17,12,0.95) 100%)'
-          : 'rgba(255,255,255,0.03)',
-        borderRight: '1px solid rgba(255,255,255,0.05)',
+          ? 'radial-gradient(ellipse 90% 90% at 50% 50%, rgba(200,215,190,0.13) 0%, rgba(40,52,38,0.82) 55%, rgba(18,24,18,0.96) 100%)'
+          : 'rgba(255,255,255,0.04)',
+        borderRight: '1px solid rgba(255,255,255,0.06)',
         cursor: hasImage ? 'zoom-in' : 'default',
         transition: 'background 0.2s',
       }}
@@ -58,12 +59,6 @@ const CardImage = ({ src, alt, cat, onClick }: CardImageProps) => {
     >
       {hasImage ? (
         <>
-          {/* Green glow behind image */}
-          <div style={{
-            position: 'absolute', inset: 0,
-            background: 'radial-gradient(ellipse 60% 55% at 50% 55%, rgba(139,195,74,0.10) 0%, transparent 70%)',
-            pointerEvents: 'none',
-          }} />
           <img
             src={encodeImagePath(src)}
             alt={alt}
@@ -73,19 +68,19 @@ const CardImage = ({ src, alt, cat, onClick }: CardImageProps) => {
               width: '100%', height: '100%',
               objectFit: 'contain',
               objectPosition: 'center',
-              padding: '8px',
+              padding: '10px',
               transition: 'transform 0.25s ease',
             }}
             className="catalog-card-img"
           />
-          {/* Zoom hint overlay */}
+          {/* Zoom hint */}
           <div style={{
             position: 'absolute', bottom: 4, right: 4,
             opacity: 0,
             transition: 'opacity 0.2s',
             pointerEvents: 'none',
           }} className="catalog-zoom-hint">
-            <ZoomIn size={13} color="rgba(139,195,74,0.7)" strokeWidth={2} />
+            <ZoomIn size={13} color="rgba(139,195,74,0.8)" strokeWidth={2} />
           </div>
         </>
       ) : (
@@ -133,35 +128,36 @@ const Lightbox = ({ product, onClose }: LightboxProps) => {
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 'clamp(12px, 3vw, 24px)',
-        // Overlay fade
-        background: visible ? 'rgba(4,8,4,0.88)' : 'rgba(4,8,4,0)',
-        backdropFilter: visible ? 'blur(12px)' : 'blur(0px)',
+        // Overlay — add padding so modal never touches screen edges
+        padding: 'clamp(8px, 2.5vw, 20px)',
+        background: visible ? 'rgba(4,8,4,0.90)' : 'rgba(4,8,4,0)',
+        backdropFilter: visible ? 'blur(14px)' : 'blur(0px)',
         transition: 'background 0.28s ease, backdrop-filter 0.28s ease',
       }}
     >
       {/* Modal card */}
       <div
         onClick={e => e.stopPropagation()}
+        className="lb-modal"
         style={{
-          // Glass-effect dark card
-          background: 'linear-gradient(160deg, rgba(22,32,22,0.97) 0%, rgba(10,15,10,0.98) 100%)',
-          border: '1px solid rgba(139,195,74,0.20)',
+          background: 'linear-gradient(160deg, rgba(24,34,22,0.98) 0%, rgba(10,15,10,0.99) 100%)',
+          border: '1px solid rgba(139,195,74,0.22)',
           borderRadius: '22px',
           boxShadow: [
-            '0 40px 100px rgba(0,0,0,0.75)',
+            '0 40px 100px rgba(0,0,0,0.80)',
             '0 0 0 1px rgba(255,255,255,0.04)',
             'inset 0 1px 0 rgba(255,255,255,0.06)',
           ].join(', '),
-          // Responsive sizing — much larger than before
+          // Responsive sizing
           width: '100%',
-          maxWidth: 'min(90vw, 820px)',
-          maxHeight: '90vh',
+          maxWidth: 'min(90vw, 840px)',
+          // Height = viewport minus overlay padding; flex children handle the rest
+          maxHeight: 'min(88vh, 760px)',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
           // Scale + fade entrance
-          transform: visible ? 'scale(1) translateY(0)' : 'scale(0.94) translateY(16px)',
+          transform: visible ? 'scale(1) translateY(0)' : 'scale(0.94) translateY(18px)',
           opacity: visible ? 1 : 0,
           transition: 'transform 0.30s cubic-bezier(0.34,1.28,0.64,1), opacity 0.26s ease',
         }}
@@ -169,25 +165,26 @@ const Lightbox = ({ product, onClose }: LightboxProps) => {
         {/* ── Header ── */}
         <div style={{
           display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-          padding: '18px 22px 14px',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          padding: '16px 20px 13px',
+          borderBottom: '1px solid rgba(255,255,255,0.07)',
           flexShrink: 0,
+          gap: '12px',
         }}>
-          <div style={{ minWidth: 0 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
             <p style={{
-              fontSize: '9.5px', fontWeight: 700, color: '#8BC34A',
-              letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: '4px',
+              fontSize: '9px', fontWeight: 700, color: '#8BC34A',
+              letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: '3px',
             }}>
               {product.categoryLabel}
             </p>
             <p style={{
-              fontSize: '17px', fontWeight: 800, color: '#fff',
-              lineHeight: 1.2, marginBottom: '3px',
+              fontSize: '16px', fontWeight: 800, color: '#fff',
+              lineHeight: 1.2, marginBottom: '2px',
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
               {product.name}
             </p>
-            <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.32)', fontFamily: 'monospace' }}>
+            <p style={{ fontSize: '10.5px', color: 'rgba(255,255,255,0.30)', fontFamily: 'monospace' }}>
               {product.code}
             </p>
           </div>
@@ -196,49 +193,53 @@ const Lightbox = ({ product, onClose }: LightboxProps) => {
             onClick={onClose}
             aria-label="Fechar visualização"
             style={{
-              flexShrink: 0, marginLeft: '16px',
-              background: 'rgba(255,255,255,0.07)',
-              border: '1px solid rgba(255,255,255,0.12)',
+              flexShrink: 0,
+              background: 'rgba(255,255,255,0.08)',
+              border: '1px solid rgba(255,255,255,0.13)',
               borderRadius: '10px',
               padding: '8px',
               cursor: 'pointer',
-              color: 'rgba(255,255,255,0.55)',
+              color: 'rgba(255,255,255,0.60)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               transition: 'all 0.15s',
             }}
             onMouseEnter={e => {
-              (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.14)';
+              (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.16)';
               (e.currentTarget as HTMLElement).style.color = '#fff';
             }}
             onMouseLeave={e => {
-              (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)';
-              (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.55)';
+              (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.08)';
+              (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.60)';
             }}
           >
             <X size={17} strokeWidth={2.5} />
           </button>
         </div>
 
-        {/* ── Image area — takes all remaining space ── */}
-        <div style={{
-          flex: 1,
-          minHeight: 0,           // critical: lets flex child shrink below content size
-          position: 'relative',
-          background: [
-            'radial-gradient(ellipse 65% 60% at 50% 50%, rgba(139,195,74,0.07) 0%, transparent 70%)',
-            'rgba(8,12,8,0.98)',
-          ].join(', '),
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '24px',
-          overflow: 'hidden',
-        }}>
-          {/* Subtle grid texture */}
+        {/* ── Image area — flex:1 + minHeight:0 lets it shrink correctly ── */}
+        <div
+          className="image-zoom-frame"
+          style={{
+            flex: 1,
+            minHeight: 0,   // critical: allows flex child to shrink below intrinsic size
+            position: 'relative',
+            // Premium neutral background — lighter centre, dark edges
+            background: [
+              'radial-gradient(ellipse 70% 70% at 50% 48%, rgba(195,220,170,0.14) 0%, rgba(42,58,38,0.80) 52%, rgba(10,14,10,1) 100%)',
+            ].join(', '),
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            // Enough padding so image never touches edges, but not so much it wastes space
+            padding: 'clamp(16px, 3vw, 28px)',
+            overflow: 'hidden',
+          }}
+        >
+          {/* Subtle dot texture */}
           <div style={{
-            position: 'absolute', inset: 0, opacity: 0.025,
-            backgroundImage: 'linear-gradient(rgba(139,195,74,1) 1px, transparent 1px), linear-gradient(90deg, rgba(139,195,74,1) 1px, transparent 1px)',
-            backgroundSize: '40px 40px',
+            position: 'absolute', inset: 0,
+            backgroundImage: 'radial-gradient(circle, rgba(139,195,74,0.06) 1px, transparent 1px)',
+            backgroundSize: '32px 32px',
             pointerEvents: 'none',
           }} />
 
@@ -248,7 +249,7 @@ const Lightbox = ({ product, onClose }: LightboxProps) => {
               alt={product.name}
               onError={() => setImgFailed(true)}
               style={{
-                // Fills available space without cropping
+                // Key: constrain to parent without cropping
                 maxWidth: '100%',
                 maxHeight: '100%',
                 width: 'auto',
@@ -256,11 +257,11 @@ const Lightbox = ({ product, onClose }: LightboxProps) => {
                 objectFit: 'contain',
                 objectPosition: 'center',
                 display: 'block',
+                position: 'relative', // above texture overlay
                 filter: [
-                  'drop-shadow(0 12px 40px rgba(0,0,0,0.6))',
-                  'drop-shadow(0 0 1px rgba(0,0,0,0.3))',
+                  'drop-shadow(0 14px 44px rgba(0,0,0,0.55))',
+                  'drop-shadow(0 2px 6px rgba(0,0,0,0.25))',
                 ].join(' '),
-                // Subtle reveal
                 opacity: visible ? 1 : 0,
                 transition: 'opacity 0.35s ease 0.12s',
               }}
@@ -273,12 +274,12 @@ const Lightbox = ({ product, onClose }: LightboxProps) => {
         {/* ── Footer ── */}
         <div style={{
           flexShrink: 0,
-          padding: '14px 22px 18px',
-          borderTop: '1px solid rgba(255,255,255,0.06)',
+          padding: '12px 20px 16px',
+          borderTop: '1px solid rgba(255,255,255,0.07)',
           display: 'flex', alignItems: 'center',
           justifyContent: 'space-between', gap: '12px',
           flexWrap: 'wrap',
-          background: 'rgba(0,0,0,0.15)',
+          background: 'rgba(0,0,0,0.18)',
         }}>
           <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
             {product.bateriaKg && product.bateriaKg !== 'X' && (
@@ -397,16 +398,26 @@ export default function CatalogPage() {
     >
       {/* CSS for hover effects */}
       <style>{`
-        .catalog-card-wrap:hover .catalog-card-img { transform: scale(1.06) !important; }
+        .catalog-card-wrap:hover .catalog-card-img { transform: scale(1.05) !important; }
         .catalog-card-wrap:hover .catalog-zoom-hint { opacity: 1 !important; }
         .catalog-card-wrap { transition: box-shadow 0.2s; }
         .catalog-card-wrap:hover { box-shadow: 0 4px 24px rgba(0,0,0,0.35); }
 
-        /* Lightbox responsive sizing */
+        /* Image zoom frame — image fills without exceeding container */
+        .image-zoom-frame {
+          /* Clamp: enough room to show image on small screens */
+          min-height: clamp(200px, 48vh, 480px);
+        }
+
+        /* Lightbox responsive overrides */
         @media (max-width: 600px) {
           .lb-modal {
             max-width: 94vw !important;
-            max-height: 85vh !important;
+            max-height: 88vh !important;
+            border-radius: 16px !important;
+          }
+          .image-zoom-frame {
+            min-height: clamp(180px, 44vh, 360px) !important;
           }
         }
       `}</style>
