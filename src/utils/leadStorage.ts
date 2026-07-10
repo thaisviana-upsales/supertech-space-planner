@@ -4,6 +4,7 @@ import type { ProjectData } from '../types';
 export interface LeadRecord {
   id: string;
   createdAt: string;
+  codigoPrevia?: string;        // SSP-XXXX-YYYY — stable session ID for upsert
   lastStepNum: number;
   name: string;
   phone: string;
@@ -54,11 +55,18 @@ export function getInvestmentCategory(midpoint: number): string {
   return 'Enterprise';
 }
 
+// step 8 = Confirmação (lead chegou à página final mas pode não ter enviado)
 export function getLastStepLabel(step: number, sent?: boolean): string {
   if (sent) return 'Enviado';
   const labels: Record<number, string> = {
-    1: 'Início', 2: 'Objetivo', 3: 'Investimento',
-    4: 'Prazo', 5: 'Perfil', 6: 'Equipamentos', 7: 'Prévia do projeto',
+    1: 'Início',
+    2: 'Objetivo',
+    3: 'Investimento',
+    4: 'Prazo',
+    5: 'Perfil',
+    6: 'Equipamentos',
+    7: 'Prévia do projeto',
+    8: 'Confirmação',
   };
   return labels[step] ?? 'Início';
 }
@@ -69,25 +77,101 @@ export function formatDateTime(iso: string): string {
     d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
-// ── Storage ────────────────────────────────────────────────────────────────────
+// ── Storage key ────────────────────────────────────────────────────────────────
 const STORAGE_KEY = 'ssp_leads';
 const MOCK_KEY    = 'ssp_leads_seeded';
 
-export function readLeads(): LeadRecord[] {
+// ── Step rank — higher = more advanced in the funnel ──────────────────────────
+function stepRank(lead: LeadRecord): number {
+  if (lead.sentToConsultor) return 10;
+  return lead.lastStepNum ?? 0;
+}
+
+/** Normalise a phone to digits-only for dedup comparison */
+function normalizePhone(p?: string): string {
+  return (p ?? '').replace(/\D/g, '');
+}
+
+// ── Deduplication ─────────────────────────────────────────────────────────────
+/**
+ * Consolidate raw records from localStorage into one record per real lead.
+ *
+ * Priority order:
+ *  1. codigoPrevia  — same session code → same lead
+ *  2. phone         — same normalised phone (≥ 8 digits) → same lead (fallback)
+ *  3. no dedup key  → kept as-is
+ *
+ * When two records map to the same lead, the one with the higher step rank
+ * (i.e. most advanced in the funnel) wins.
+ *
+ * Result is sorted by createdAt descending (most recent first).
+ */
+export function consolidateLeads(raw: LeadRecord[]): LeadRecord[] {
+  const byCode  = new Map<string, LeadRecord>();
+  const byPhone = new Map<string, LeadRecord>();
+  const noKey:  LeadRecord[] = [];
+
+  for (const lead of raw) {
+    const code  = lead.codigoPrevia?.trim();
+    const phone = normalizePhone(lead.phone);
+
+    if (code) {
+      const prev = byCode.get(code);
+      if (!prev || stepRank(lead) > stepRank(prev)) byCode.set(code, lead);
+    } else if (phone.length >= 8) {
+      const prev = byPhone.get(phone);
+      if (!prev || stepRank(lead) > stepRank(prev)) byPhone.set(phone, lead);
+    } else {
+      noKey.push(lead);
+    }
+  }
+
+  const result: LeadRecord[] = [
+    ...Array.from(byCode.values()),
+    ...Array.from(byPhone.values()),
+    ...noKey,
+  ];
+
+  result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  return result;
+}
+
+// ── Raw read (no dedup) ───────────────────────────────────────────────────────
+function readRawLeads(): LeadRecord[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? (JSON.parse(raw) as LeadRecord[]) : [];
   } catch { return []; }
 }
 
-export function saveLeadFromData(data: ProjectData, step: number): void {
-  const mid  = getInvestmentMidpoint(data.investmentRange);
-  const cat  = getInvestmentCategory(mid);
+// ── Public read — always deduplicated ────────────────────────────────────────
+export function readLeads(): LeadRecord[] {
+  return consolidateLeads(readRawLeads());
+}
+
+// ── Upsert ────────────────────────────────────────────────────────────────────
+/**
+ * Save or update a lead record.
+ *
+ * - If a record with the same codigoPrevia already exists:
+ *     • Update it in-place (preserving original createdAt).
+ *     • Only upgrade — never downgrade the step.
+ * - Otherwise: prepend a new record.
+ *
+ * This replaces the old saveLeadFromData (which always added a new record,
+ * causing one duplicated entry per step the lead traversed).
+ */
+export function upsertLeadFromData(data: ProjectData, step: number): void {
+  const mid   = getInvestmentMidpoint(data.investmentRange);
+  const cat   = getInvestmentCategory(mid);
   const total = (data.selectedEquipment ?? [])
     .reduce((s, e) => s + (e.price ?? 0) * e.quantity, 0);
 
-  const record: LeadRecord = {
-    id:                  crypto.randomUUID(),
+  const code = data.codigoPrevia?.trim() ?? '';
+
+  const newRecord: LeadRecord = {
+    id:                  code ? `lead-${code}` : crypto.randomUUID(),
+    codigoPrevia:        code || undefined,
     createdAt:           new Date().toISOString(),
     lastStepNum:         step,
     name:                data.name         ?? '',
@@ -104,16 +188,37 @@ export function saveLeadFromData(data: ProjectData, step: number): void {
     sentToConsultor:     data.sentToConsultor ?? false,
     objective:           data.objectiveLabel  ?? '',
     timeline:            data.timelineLabel   ?? '',
-    // Routing (populated after WhatsApp send)
     vendedorNome:        data.vendedorNome        ?? undefined,
     vendedorWhatsapp:    data.vendedorWhatsapp    ?? undefined,
     regiaoAtendimento:   data.regiaoAtendimento   ?? undefined,
     roteamentoCriterio:  data.roteamentoCriterio  ?? undefined,
   };
 
-  const existing = readLeads();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify([record, ...existing]));
+  const existing = readRawLeads();
+
+  if (code) {
+    const idx = existing.findIndex(r => r.codigoPrevia === code);
+    if (idx !== -1) {
+      // Never downgrade the step; update all other fields
+      if (step >= existing[idx].lastStepNum) {
+        existing[idx] = {
+          ...existing[idx],
+          ...newRecord,
+          // Preserve original creation time so date filters stay correct
+          createdAt: existing[idx].createdAt,
+        };
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
+      return;
+    }
+  }
+
+  // New record — prepend so newest appears first in raw array
+  localStorage.setItem(STORAGE_KEY, JSON.stringify([newRecord, ...existing]));
 }
+
+/** Backward-compat alias — any code still calling saveLeadFromData keeps working */
+export const saveLeadFromData = upsertLeadFromData;
 
 // ── Mock seed (runs once) ──────────────────────────────────────────────────────
 function mk(
@@ -156,7 +261,7 @@ export const MOCK_LEADS: LeadRecord[] = [
 
 export function ensureMockSeeded(): void {
   if (localStorage.getItem(MOCK_KEY)) return;
-  const existing = readLeads();
+  const existing = readRawLeads();
   const merged = [...existing, ...MOCK_LEADS];
   localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
   localStorage.setItem(MOCK_KEY, '1');

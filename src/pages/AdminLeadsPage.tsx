@@ -232,15 +232,23 @@ export default function AdminLeadsPage() {
 
   // ── KPIs — calculados sobre `filtered`, não sobre `leads` ─────────────────
   //
-  // totalAcessos   = todos os leads no filtro atual
-  // preencheramTudo = chegou à etapa de revisão/visualização (step >= 7) OU enviou
+  // totalAcessos      = leads únicos dentro do filtro ativo
+  // preencheramTudo   = chegou à etapa Prévia (step >= 7) ou Confirmação (step 8) OU enviou
   // enviaramConsultor = sentToConsultor === true
-  // abandonaram    = totalAcessos - enviaramConsultor
+  // abandonaram       = totalAcessos - enviaramConsultor
   //   (quem preencheu tudo mas não enviou é abandono tardio — conta em abandonaram)
   const kpiTotal     = filtered.length;
   const kpiSent      = filtered.filter(l => l.sentToConsultor).length;
   const kpiComplete  = filtered.filter(l => l.lastStepNum >= 7 || l.sentToConsultor).length;
   const kpiAbandoned = Math.max(0, kpiTotal - kpiSent);
+
+  // ── Diagnóstico (apenas em desenvolvimento) ───────────────────────────────
+  if (import.meta.env.DEV) {
+    console.log('[AdminLeads] leads no banco (deduplicados):', leads.length);
+    console.log('[AdminLeads] leads filtrados:', filtered.length);
+    console.log('[AdminLeads] métricas:', { kpiTotal, kpiComplete, kpiSent, kpiAbandoned });
+    if (filtered.length > 0) console.log('[AdminLeads] sample lead:', filtered[0]);
+  }
 
   // ── Login ──────────────────────────────────────────────────────────────────
   if (!authed) {
