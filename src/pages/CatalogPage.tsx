@@ -6,8 +6,8 @@ import {
 } from 'lucide-react';
 import { usePlanner } from '../context/PlannerContext';
 import { CATALOG, formatPrice, type TabKey, type CatalogProduct } from '../data/catalog';
-import { resolveWhatsappDestination } from '../data/whatsappRouting';
 import { saveEquipmentsToSheets } from '../services/googleSheets';
+import { openConsultorDirect } from '../utils/consultorDirect';
 
 // ── Category icon fallback ─────────────────────────────────────────────────────
 const CategoryIcon = ({ cat, size = 28 }: { cat: string; size?: number }) => {
@@ -357,27 +357,18 @@ export default function CatalogPage() {
 
   function handleSendConsultor() {
     const { data } = state;
-
-    // ── Resolver destino pelo roteamento (DDD > cidade/UF > UF > fallback) ──
-    const destination = resolveWhatsappDestination({
-      phone:        data.phone,
-      city:         data.city,
-      uf:           data.uf,
-      codigoPrevia: data.codigoPrevia,
+    openConsultorDirect({
+      name:            data.name,
+      phone:           data.phone,
+      city:            data.city,
+      uf:              data.uf,
+      codigoPrevia:    data.codigoPrevia,
+      objectiveLabel:  data.objectiveLabel,
+      investmentLabel: data.investmentLabel,
+      investmentRange: data.investmentRange,
+      deadlineLabel:   data.deadlineLabel,
+      profileLabel:    data.profileLabel,
     });
-
-    console.log('Lead data para roteamento (CatalogPage):', { phone: data.phone, city: data.city, uf: data.uf });
-    console.log('Destino WhatsApp resolvido (CatalogPage):', destination);
-
-    const items = selected.map(e => `• ${e.name} (×${e.quantity}) — ${formatPrice(e.price * e.quantity)}`).join('\n');
-    const msg = encodeURIComponent(
-      `Olá! Minha prévia do Space Planner:\n\n` +
-      `*Nome:* ${data.name ?? '-'}\n*WhatsApp:* ${data.phone ?? '-'}\n` +
-      `*Objetivo:* ${data.objectiveLabel ?? '-'}\n*Investimento:* ${data.investmentLabel ?? '-'}\n` +
-      `*Prazo:* ${data.deadlineLabel ?? '-'}\n*Cidade:* ${data.uf ?? '-'} / ${data.city ?? '-'}\n\n` +
-      `*Equipamentos:*\n${items}\n\n*Estimativa: ${formatPrice(total)}*`
-    );
-    window.open(`https://wa.me/${destination.whatsapp}?text=${msg}`, '_blank');
   }
 
   const products = CATALOG[activeTab];

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Minus, Plus, Trash2, MessageCircle, Activity, Dumbbell, Zap } from 'lucide-react';
 import { usePlanner } from '../context/PlannerContext';
 import { formatPrice } from '../data/catalog';
-import { resolveWhatsappDestination } from '../data/whatsappRouting';
+import { openConsultorDirect } from '../utils/consultorDirect';
 import type { Equipment } from '../types';
 
 // ── Investment tier → project profile label ───────────────────────────────────
@@ -71,21 +71,6 @@ function groupByCategory(items: Equipment[]): Record<string, Equipment[]> {
     acc[key].push(eq);
     return acc;
   }, {} as Record<string, Equipment[]>);
-}
-
-// ── WhatsApp message builder ──────────────────────────────────────────────────
-function buildWAMessage(state: ReturnType<typeof usePlanner>['state']): string {
-  const { data } = state;
-  const selected = data.selectedEquipment ?? [];
-  const total = selected.reduce((s, e) => s + e.price * e.quantity, 0);
-  const items = selected.map(e => `• ${e.name} (×${e.quantity}) — ${formatPrice(e.price * e.quantity)}`).join('\n');
-  return encodeURIComponent(
-    `Olá! Minha prévia do Space Planner:\n\n` +
-    `*Nome:* ${data.name ?? '-'}\n*WhatsApp:* ${data.phone ?? '-'}\n` +
-    `*Objetivo:* ${data.objectiveLabel ?? '-'}\n*Investimento:* ${data.investmentLabel ?? '-'}\n` +
-    `*Prazo:* ${data.deadlineLabel ?? '-'}\n*Cidade:* ${data.uf ?? '-'} / ${data.city ?? '-'}\n\n` +
-    `*Equipamentos:*\n${items}\n\n*Estimativa: ${formatPrice(total)}*`
-  );
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -318,15 +303,18 @@ export default function ProjectPage() {
               <button
                 onClick={() => {
                   const { data } = state;
-                  const destination = resolveWhatsappDestination({
-                    phone:        data.phone,
-                    city:         data.city,
-                    uf:           data.uf,
-                    codigoPrevia: data.codigoPrevia,
+                  openConsultorDirect({
+                    name:            data.name,
+                    phone:           data.phone,
+                    city:            data.city,
+                    uf:              data.uf,
+                    codigoPrevia:    data.codigoPrevia,
+                    objectiveLabel:  data.objectiveLabel,
+                    investmentLabel: data.investmentLabel,
+                    investmentRange: data.investmentRange,
+                    deadlineLabel:   data.deadlineLabel,
+                    profileLabel:    data.profileLabel,
                   });
-                  console.log('Lead data para roteamento (ProjectPage):', { phone: data.phone, city: data.city, uf: data.uf });
-                  console.log('Destino WhatsApp resolvido (ProjectPage):', destination);
-                  window.open(`https://wa.me/${destination.whatsapp}?text=${buildWAMessage(state)}`, '_blank');
                 }}
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-lg font-semibold text-[13px] border transition-all hover:bg-white/[0.04]"
                 style={{ background: 'transparent', borderColor: '#8BC34A', color: 'rgba(255,255,255,0.75)' }}

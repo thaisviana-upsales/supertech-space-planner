@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowRight, Bot, MessageCircle, Check } from 'lucide-react';
 import { usePlanner } from '../context/PlannerContext';
 import { BRAZIL_LOCATIONS, getCitiesByUF } from '../data/brazilLocations';
 import { saveLeadToSheets, saveEventToSheets } from '../services/googleSheets';
-import { resolveWhatsappDestination } from '../data/whatsappRouting';
+import { openConsultorDirect } from '../utils/consultorDirect';
 
 // ── Sub-step config ───────────────────────────────────────────────────────────
 type SubStep = 1 | 2 | 3 | 4;
@@ -187,19 +187,20 @@ export default function LeadPage() {
     const phoneRaw = phone || state.data.phone || '';
     const ufRaw   = uf   || state.data.uf   || '';
     const cityRaw = city || state.data.city || '';
+    const nameRaw = name || state.data.name || '';
 
-    const destination = resolveWhatsappDestination({
-      phone: phoneRaw,
-      city:  cityRaw,
-      uf:    ufRaw,
-      codigoPrevia: state.data.codigoPrevia,
+    openConsultorDirect({
+      name:            nameRaw,
+      phone:           phoneRaw,
+      city:            cityRaw,
+      uf:              ufRaw,
+      codigoPrevia:    state.data.codigoPrevia,
+      objectiveLabel:  state.data.objectiveLabel,
+      investmentLabel: state.data.investmentLabel,
+      investmentRange: state.data.investmentRange,
+      deadlineLabel:   state.data.deadlineLabel,
+      profileLabel:    segment || state.data.profileLabel,
     });
-
-    console.log('Lead data para roteamento (LeadPage):', { phone: phoneRaw, city: cityRaw, uf: ufRaw });
-    console.log('Destino WhatsApp resolvido (LeadPage):', destination);
-
-    const msg = encodeURIComponent('Olá! Quero negociar direto com um consultor Supertech.');
-    window.open(`https://wa.me/${destination.whatsapp}?text=${msg}`, '_blank');
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────

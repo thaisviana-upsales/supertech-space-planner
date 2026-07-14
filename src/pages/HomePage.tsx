@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Bot, Clock, User, DollarSign, Dumbbell, Grid2X2, Send } from 'lucide-react';
+import ConsultorDirectModal from '../components/ConsultorDirectModal';
 
 const MODULES = [
   { num: '01', title: 'Perfil',           desc: 'Segmento, objetivo e contexto',   icon: <User size={15} /> },
@@ -17,6 +19,7 @@ const STEPS = [
 
 export default function HomePage() {
   const navigate = useNavigate();
+  const [showModal, setShowModal] = useState(false);
 
   return (
     <div
@@ -147,12 +150,21 @@ export default function HomePage() {
                 Fábrica nacional de equipamentos fitness profissionais
               </span>
             </div>
-            <button className="flex items-center gap-1 text-[10px] font-medium text-[#8BC34A]/65 hover:text-[#8BC34A] transition-colors whitespace-nowrap">
+            <button
+              id="homepage-consultor-btn"
+              onClick={() => setShowModal(true)}
+              className="flex items-center gap-1 text-[10px] font-medium text-[#8BC34A]/65 hover:text-[#8BC34A] transition-colors whitespace-nowrap"
+            >
               Já tem um projeto? Falar com consultor →
             </button>
           </div>
         </footer>
       </main>
+
+      {/* Modal para captura de DDD */}
+      {showModal && (
+        <ConsultorDirectModal onClose={() => setShowModal(false)} />
+      )}
     </div>
   );
 }

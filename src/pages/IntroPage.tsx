@@ -1,8 +1,11 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Check, Circle } from 'lucide-react';
+import ConsultorDirectModal from '../components/ConsultorDirectModal';
 
 export default function IntroPage() {
   const navigate = useNavigate();
+  const [showModal, setShowModal] = useState(false);
 
   return (
     <div
@@ -76,11 +79,20 @@ export default function IntroPage() {
             />
             <span className="text-[9px] text-white/20 uppercase tracking-widest hidden sm:inline">Space Planner™</span>
           </div>
-          <button className="text-[10px] font-semibold text-white/30 uppercase tracking-widest hover:text-white/55 transition-colors">
+          <button
+            id="intro-consultor-btn"
+            onClick={() => setShowModal(true)}
+            className="text-[10px] font-semibold text-white/30 uppercase tracking-widest hover:text-white/55 transition-colors"
+          >
             Falar com consultor →
           </button>
         </div>
       </footer>
+
+      {/* Modal para captura de DDD */}
+      {showModal && (
+        <ConsultorDirectModal onClose={() => setShowModal(false)} />
+      )}
     </div>
   );
 }
