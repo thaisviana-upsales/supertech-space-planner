@@ -8,6 +8,7 @@ import { usePlanner } from '../context/PlannerContext';
 import { CATALOG, formatPrice, type TabKey, type CatalogProduct } from '../data/catalog';
 import { saveEquipmentsToSheets } from '../services/googleSheets';
 import { openConsultorDirect } from '../utils/consultorDirect';
+import { upsertLeadFromData } from '../utils/leadStorage';
 
 // ── Category icon fallback ─────────────────────────────────────────────────────
 const CategoryIcon = ({ cat, size = 28 }: { cat: string; size?: number }) => {
@@ -329,6 +330,10 @@ export default function CatalogPage() {
     triggerToast(p.name);
     const updatedList = [...selected.filter(e => e.id !== p.id), item];
     saveEquipmentsToSheets(state.data.codigoPrevia ?? '', updatedList);
+    // Salvar lead parcial no localStorage com step 6 (catálogo)
+    const updatedData = { ...state.data, selectedEquipment: updatedList };
+    upsertLeadFromData(updatedData, 6);
+    console.log('UPSERT LEAD PROGRESS (CatalogPage/add):', { codigoPrevia: state.data.codigoPrevia, step: 6, equipCount: updatedList.length });
   }
 
   function handleInc(p: CatalogProduct) {

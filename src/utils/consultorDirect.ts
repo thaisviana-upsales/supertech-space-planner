@@ -127,8 +127,8 @@ export function saveConsultorDirectLead(
     roteamentoChave:    destination.roteamentoChave,
   };
 
-  // Salvar no localStorage (passo 0 = lead parcial / consultor direto)
-  upsertLeadFromData(projectData as ProjectData, 0);
+  // Salvar no localStorage (passo 9 = consultor_direto, mais avançado que qualquer etapa normal)
+  upsertLeadFromData(projectData as ProjectData, 9);
 
   // Salvar no Google Sheets (non-blocking)
   const ddd = extractDDDFromPhone(lead.phone) ?? '';

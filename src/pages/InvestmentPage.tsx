@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { usePlanner } from '../context/PlannerContext';
 import { saveEventToSheets } from '../services/googleSheets';
+import { upsertLeadFromData } from '../utils/leadStorage';
 
 // ── Scale helpers ─────────────────────────────────────────────────────────────
 const V_MIN = 50_000;
@@ -110,11 +111,21 @@ export default function InvestmentPage() {
 
   function handleContinue() {
     const label = `${brl(currentValue)} · ${currentTier.label}`;
+    const updatedData = {
+      ...state.data,
+      investmentRange: currentTier.key as import('../types').InvestmentRange,
+      investmentLabel: label,
+    };
     updateData({
       investmentRange: currentTier.key as import('../types').InvestmentRange,
       investmentLabel: label,
     });
     setStep(3);
+
+    // ── Salvar lead parcial no localStorage ──
+    upsertLeadFromData(updatedData, 3);
+    console.log('UPSERT LEAD PROGRESS (InvestmentPage):', { codigoPrevia: updatedData.codigoPrevia, step: 3, investmentLabel: label });
+
     // Fire Google Sheets event (non-blocking)
     saveEventToSheets(
       state.data.codigoPrevia ?? '',

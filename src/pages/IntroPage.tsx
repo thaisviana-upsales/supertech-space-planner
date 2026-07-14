@@ -2,10 +2,20 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Check, Circle } from 'lucide-react';
 import ConsultorDirectModal from '../components/ConsultorDirectModal';
+import { usePlanner } from '../context/PlannerContext';
+import { upsertLeadFromData } from '../utils/leadStorage';
 
 export default function IntroPage() {
   const navigate = useNavigate();
+  const { state } = usePlanner();
   const [showModal, setShowModal] = useState(false);
+
+  function handleStart() {
+    // Salvar lead parcial step 1 — garante registro mesmo que abandone antes do objetivo
+    upsertLeadFromData(state.data, 1);
+    console.log('UPSERT LEAD PROGRESS (IntroPage):', { codigoPrevia: state.data.codigoPrevia, step: 1 });
+    navigate('/objective');
+  }
 
   return (
     <div
@@ -34,7 +44,7 @@ export default function IntroPage() {
 
           {/* CTA */}
           <button
-            onClick={() => navigate('/objective')}
+            onClick={handleStart}
             className="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-[14px] text-black transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] mb-6"
             style={{ background: '#8BC34A', boxShadow: '0 0 18px rgba(139,195,74,0.26)', minHeight: '48px' }}
           >

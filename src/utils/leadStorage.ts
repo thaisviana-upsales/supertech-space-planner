@@ -25,6 +25,7 @@ export interface LeadRecord {
   vendedorWhatsapp?: string;
   regiaoAtendimento?: string;
   roteamentoCriterio?: string;
+  roteamentoChave?: string;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -56,9 +57,11 @@ export function getInvestmentCategory(midpoint: number): string {
 }
 
 // step 8 = Confirmação (lead chegou à página final mas pode não ter enviado)
+// step 9 = Consultor Direto (clicou em "Falar com consultor" antes do fim)
 export function getLastStepLabel(step: number, sent?: boolean): string {
   if (sent) return 'Enviado';
   const labels: Record<number, string> = {
+    0: 'Início',
     1: 'Início',
     2: 'Objetivo',
     3: 'Investimento',
@@ -67,6 +70,7 @@ export function getLastStepLabel(step: number, sent?: boolean): string {
     6: 'Equipamentos',
     7: 'Prévia do projeto',
     8: 'Confirmação',
+    9: 'Consultor Direto',
   };
   return labels[step] ?? 'Início';
 }
@@ -192,6 +196,7 @@ export function upsertLeadFromData(data: ProjectData, step: number): void {
     vendedorWhatsapp:    data.vendedorWhatsapp    ?? undefined,
     regiaoAtendimento:   data.regiaoAtendimento   ?? undefined,
     roteamentoCriterio:  data.roteamentoCriterio  ?? undefined,
+    roteamentoChave:     data.roteamentoChave     ?? undefined,
   };
 
   const existing = readRawLeads();

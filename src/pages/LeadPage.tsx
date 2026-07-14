@@ -5,6 +5,7 @@ import { usePlanner } from '../context/PlannerContext';
 import { BRAZIL_LOCATIONS, getCitiesByUF } from '../data/brazilLocations';
 import { saveLeadToSheets, saveEventToSheets } from '../services/googleSheets';
 import { openConsultorDirect } from '../utils/consultorDirect';
+import { upsertLeadFromData } from '../utils/leadStorage';
 
 // ── Sub-step config ───────────────────────────────────────────────────────────
 type SubStep = 1 | 2 | 3 | 4;
@@ -158,7 +159,22 @@ export default function LeadPage() {
       updateData({ profile: segment as any, profileLabel: segment });
       setStep(5);
 
-      // ── Save lead to Google Sheets (non-blocking) ──────────────────────────
+      // ── Dados completos do lead até o perfil ──
+      const updatedData = {
+        ...state.data,
+        name:         name.trim(),
+        phone:        phone.trim(),
+        city,
+        uf,
+        profile:      segment as any,
+        profileLabel: segment,
+      };
+
+      // Salvar no localStorage (fonte do painel admin)
+      upsertLeadFromData(updatedData, 5);
+      console.log('UPSERT LEAD PROGRESS (LeadPage/Perfil):', { codigoPrevia: updatedData.codigoPrevia, step: 5, name: updatedData.name });
+
+      // Salvar no Google Sheets (não-bloqueante, independente do painel)
       const d = state.data;
       saveLeadToSheets({
         codigoPrevia:         d.codigoPrevia ?? '',
@@ -176,7 +192,6 @@ export default function LeadPage() {
         consentimentoLgpd:    true,
       });
       saveEventToSheets(d.codigoPrevia ?? '', 'Perfil', 'concluiu', segment);
-      // ──────────────────────────────────────────────────────────────────────
 
       navigate('/catalog?line=cardio');
     }

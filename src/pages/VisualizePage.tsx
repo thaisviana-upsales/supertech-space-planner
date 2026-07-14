@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Activity, Dumbbell, Zap, MessageCircle,
@@ -12,6 +12,7 @@ import {
   openWhatsappWithDestination,
   buildDestinationSuffix,
 } from '../data/whatsappRouting';
+import { upsertLeadFromData } from '../utils/leadStorage';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function brl(n: number) { return n > 0 ? 'R$ ' + n.toLocaleString('pt-BR') : '—'; }
@@ -179,6 +180,13 @@ export default function VisualizePage() {
   const hasEquipment  = equipment.length > 0;
   const [sending, setSending] = useState(false);
   const [sent,    setSent]    = useState(false);
+
+  // ── Salvar lead ao chegar na prévia visual (step 7) ──
+  useEffect(() => {
+    upsertLeadFromData(data, 7);
+    console.log('UPSERT LEAD PROGRESS (VisualizePage):', { codigoPrevia: data.codigoPrevia, step: 7 });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.codigoPrevia]);
 
   // Group by category
   const grouped: Record<string, Equipment[]> = {};

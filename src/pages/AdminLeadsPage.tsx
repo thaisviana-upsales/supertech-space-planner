@@ -48,7 +48,7 @@ const INVEST_OPTIONS = [
 
 const ETAPA_OPTIONS = [
   'Todas as etapas', 'Início', 'Objetivo', 'Investimento', 'Prazo',
-  'Perfil', 'Equipamentos', 'Prévia do projeto', 'Enviado',
+  'Perfil', 'Equipamentos', 'Prévia do projeto', 'Consultor Direto', 'Enviado',
 ];
 
 const UF_LIST = [
@@ -146,10 +146,16 @@ export default function AdminLeadsPage() {
   useEffect(() => {
     if (!authed) return;
     ensureMockSeeded();
-    setLeads(readLeads());
+    const loaded = readLeads();
+    setLeads(loaded);
+    console.log('ADMIN LEADS CARREGADOS:', loaded.length, loaded);
 
     // Auto-refresh leads every 60s (only while authed)
-    const interval = setInterval(() => setLeads(readLeads()), 60_000);
+    const interval = setInterval(() => {
+      const refreshed = readLeads();
+      setLeads(refreshed);
+      console.log('ADMIN LEADS ATUALIZADOS:', refreshed.length);
+    }, 60_000);
     return () => clearInterval(interval);
   }, [authed]);
 

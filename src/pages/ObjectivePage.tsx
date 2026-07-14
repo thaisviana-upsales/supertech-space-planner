@@ -5,6 +5,7 @@ import { usePlanner } from '../context/PlannerContext';
 import { OBJECTIVE_LABELS } from '../constants';
 import SelectableCard from '../components/SelectableCard';
 import { saveEventToSheets } from '../services/googleSheets';
+import { upsertLeadFromData } from '../utils/leadStorage';
 
 // ── Option definitions (exact copy from print) ────────────────────────────────
 type ObjectiveKey = keyof typeof OBJECTIVE_LABELS;
@@ -52,11 +53,21 @@ export default function ObjectivePage() {
 
   function handleContinue() {
     if (!selected) return;
+    const updatedData = {
+      ...state.data,
+      objective: selected as import('../types').ProjectObjective,
+      objectiveLabel: OBJECTIVE_LABELS[selected],
+    };
     updateData({
       objective: selected as import('../types').ProjectObjective,
       objectiveLabel: OBJECTIVE_LABELS[selected],
     });
     setStep(2);
+
+    // ── Salvar lead parcial no localStorage (aparece no painel mesmo que abandone) ──
+    upsertLeadFromData(updatedData, 2);
+    console.log('UPSERT LEAD PROGRESS (ObjectivePage):', { codigoPrevia: updatedData.codigoPrevia, step: 2, objective: updatedData.objectiveLabel });
+
     // Fire Google Sheets event (non-blocking)
     saveEventToSheets(
       state.data.codigoPrevia ?? '',

@@ -5,6 +5,7 @@ import { usePlanner } from '../context/PlannerContext';
 import { openConsultorDirect } from '../utils/consultorDirect';
 import SelectableCard from '../components/SelectableCard';
 import { saveEventToSheets } from '../services/googleSheets';
+import { upsertLeadFromData } from '../utils/leadStorage';
 
 // ── Option definitions (exact from print) ────────────────────────────────────
 type DeadlineKey =
@@ -84,11 +85,21 @@ export default function DeadlinePage() {
 
   function handleContinue() {
     if (!selected) return;
+    const updatedData = {
+      ...state.data,
+      timeline: selected as import('../types').ProjectTimeline,
+      deadlineLabel: DEADLINE_LABELS[selected],
+    };
     updateData({
       timeline: selected as import('../types').ProjectTimeline,
       deadlineLabel: DEADLINE_LABELS[selected],
     });
     setStep(4);
+
+    // ── Salvar lead parcial no localStorage ──
+    upsertLeadFromData(updatedData, 4);
+    console.log('UPSERT LEAD PROGRESS (DeadlinePage):', { codigoPrevia: updatedData.codigoPrevia, step: 4, deadline: DEADLINE_LABELS[selected] });
+
     // Fire Google Sheets event (non-blocking)
     saveEventToSheets(
       state.data.codigoPrevia ?? '',
