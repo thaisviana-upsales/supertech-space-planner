@@ -134,6 +134,17 @@ export default function LeadPage() {
     if (subStep === 1) {
       if (!name.trim()) { setError('Por favor, informe seu nome.'); return; }
       updateData({ name: name.trim() });
+      // Capturar lead mesmo que abandone após preencher o nome
+      upsertLeadProgress({
+        codigoPrevia: state.data.codigoPrevia ?? '',
+        ultimaEtapa:  'profile',
+        status:       'em_andamento',
+        nome:         name.trim(),
+        objetivo:     state.data.objectiveLabel,
+        investimento_estimado: state.data.investmentLabel,
+        prazo:        state.data.deadlineLabel,
+        origem:       state.data.origem ?? 'space_planner',
+      });
       setSubStep(2);
       return;
     }
@@ -142,6 +153,19 @@ export default function LeadPage() {
       const digits = phone.replace(/\D/g, '');
       if (digits.length < 10) { setError('Informe um WhatsApp válido (com DDD).'); return; }
       updateData({ phone: phone.trim() });
+      // Capturar lead com nome + telefone (dado mais valioso para contato)
+      upsertLeadProgress({
+        codigoPrevia: state.data.codigoPrevia ?? '',
+        ultimaEtapa:  'profile',
+        status:       'em_andamento',
+        nome:         name.trim(),
+        telefone:     phone.trim(),
+        objetivo:     state.data.objectiveLabel,
+        investimento_estimado: state.data.investmentLabel,
+        prazo:        state.data.deadlineLabel,
+        origem:       state.data.origem ?? 'space_planner',
+      });
+      console.log('UPSERT LEAD PROGRESS (LeadPage/Telefone):', { codigoPrevia: state.data.codigoPrevia, nome: name.trim(), telefone: phone.trim() });
       setSubStep(3);
       return;
     }
@@ -189,24 +213,23 @@ export default function LeadPage() {
       });
       console.log('UPSERT LEAD PROGRESS (LeadPage/Perfil):', { codigoPrevia: updatedData.codigoPrevia, step: 5, name: updatedData.name });
 
-      // Salvar no Google Sheets (não-bloqueante, independente do painel)
-      const d = state.data;
+      // Salvar no Google Sheets (não-bloqueante) — usar updatedData (tem name/phone/city/uf atuais)
       saveLeadToSheets({
-        codigoPrevia:         d.codigoPrevia ?? '',
+        codigoPrevia:         updatedData.codigoPrevia ?? '',
         nome:                 name.trim(),
         telefone:             phone.trim(),
         cidade:               city,
         uf,
         segmento:             segment,
-        objetivo:             d.objectiveLabel ?? '',
-        investimentoEstimado: d.investmentLabel ?? '',
-        prazo:                d.deadlineLabel  ?? '',
+        objetivo:             updatedData.objectiveLabel ?? '',
+        investimentoEstimado: updatedData.investmentLabel ?? '',
+        prazo:                updatedData.deadlineLabel  ?? '',
         ultimaEtapa:          'Perfil',
         status:               'em_andamento',
-        origem:               d.origem ?? 'space_planner',
+        origem:               updatedData.origem ?? 'space_planner',
         consentimentoLgpd:    true,
       });
-      saveEventToSheets(d.codigoPrevia ?? '', 'Perfil', 'concluiu', segment);
+      saveEventToSheets(updatedData.codigoPrevia ?? '', 'Perfil', 'concluiu', segment);
 
       navigate('/catalog?line=cardio');
     }
