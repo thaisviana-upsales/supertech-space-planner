@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { usePlanner } from '../context/PlannerContext';
 import { OBJECTIVE_LABELS } from '../constants';
 import SelectableCard from '../components/SelectableCard';
-import { saveEventToSheets } from '../services/googleSheets';
+import { saveEventToSheets, upsertLeadProgress } from '../services/googleSheets';
 import { upsertLeadFromData } from '../utils/leadStorage';
 
 // ── Option definitions (exact copy from print) ────────────────────────────────
@@ -66,6 +66,14 @@ export default function ObjectivePage() {
 
     // ── Salvar lead parcial no localStorage (aparece no painel mesmo que abandone) ──
     upsertLeadFromData(updatedData, 2);
+    // Enviar para Google Sheets (fonte compartilhada — visível em qualquer dispositivo)
+    upsertLeadProgress({
+      codigoPrevia: updatedData.codigoPrevia ?? '',
+      ultimaEtapa:  'objective',
+      status:       'em_andamento',
+      objetivo:     updatedData.objectiveLabel,
+      origem:       updatedData.origem ?? 'space_planner',
+    });
     console.log('UPSERT LEAD PROGRESS (ObjectivePage):', { codigoPrevia: updatedData.codigoPrevia, step: 2, objective: updatedData.objectiveLabel });
 
     // Fire Google Sheets event (non-blocking)

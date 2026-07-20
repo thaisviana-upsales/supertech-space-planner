@@ -13,6 +13,7 @@ import {
   buildDestinationSuffix,
 } from '../data/whatsappRouting';
 import { upsertLeadFromData } from '../utils/leadStorage';
+import { upsertLeadProgress } from '../services/googleSheets';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function brl(n: number) { return n > 0 ? 'R$ ' + n.toLocaleString('pt-BR') : '—'; }
@@ -184,6 +185,23 @@ export default function VisualizePage() {
   // ── Salvar lead ao chegar na prévia visual (step 7) ──
   useEffect(() => {
     upsertLeadFromData(data, 7);
+    // Enviar para Google Sheets (fonte compartilhada)
+    upsertLeadProgress({
+      codigoPrevia:        data.codigoPrevia ?? '',
+      ultimaEtapa:         'visualize',
+      status:              'em_andamento',
+      nome:                data.name,
+      telefone:            data.phone,
+      cidade:              data.city,
+      uf:                  data.uf,
+      segmento:            data.profileLabel,
+      objetivo:            data.objectiveLabel,
+      investimento_estimado: data.investmentLabel,
+      prazo:               data.timelineLabel,
+      equipamentos_count:  (data.selectedEquipment ?? []).length,
+      valor_estimado:      (data.selectedEquipment ?? []).reduce((s, e) => s + (e.price ?? 0) * e.quantity, 0),
+      origem:              data.origem ?? 'space_planner',
+    });
     console.log('UPSERT LEAD PROGRESS (VisualizePage):', { codigoPrevia: data.codigoPrevia, step: 7 });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.codigoPrevia]);

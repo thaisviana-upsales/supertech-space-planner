@@ -4,6 +4,7 @@ import { ArrowRight, Check, Circle } from 'lucide-react';
 import ConsultorDirectModal from '../components/ConsultorDirectModal';
 import { usePlanner } from '../context/PlannerContext';
 import { upsertLeadFromData } from '../utils/leadStorage';
+import { upsertLeadProgress } from '../services/googleSheets';
 
 export default function IntroPage() {
   const navigate = useNavigate();
@@ -11,9 +12,18 @@ export default function IntroPage() {
   const [showModal, setShowModal] = useState(false);
 
   function handleStart() {
+    const codigo = state.data.codigoPrevia ?? '';
     // Salvar lead parcial step 1 — garante registro mesmo que abandone antes do objetivo
     upsertLeadFromData(state.data, 1);
-    console.log('UPSERT LEAD PROGRESS (IntroPage):', { codigoPrevia: state.data.codigoPrevia, step: 1 });
+    // Enviar para Google Sheets (fonte compartilhada — visível em qualquer dispositivo)
+    upsertLeadProgress({
+      codigoPrevia: codigo,
+      ultimaEtapa:  'intro',
+      status:       'em_andamento',
+      origem:       state.data.origem ?? 'space_planner',
+    });
+    console.log('LEAD SESSION ID:', codigo);
+    console.log('UPSERT LEAD PROGRESS (IntroPage):', { codigoPrevia: codigo, step: 1 });
     navigate('/objective');
   }
 

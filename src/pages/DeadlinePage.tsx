@@ -4,7 +4,7 @@ import { useState, type ReactNode } from 'react';
 import { usePlanner } from '../context/PlannerContext';
 import { openConsultorDirect } from '../utils/consultorDirect';
 import SelectableCard from '../components/SelectableCard';
-import { saveEventToSheets } from '../services/googleSheets';
+import { saveEventToSheets, upsertLeadProgress } from '../services/googleSheets';
 import { upsertLeadFromData } from '../utils/leadStorage';
 
 // ── Option definitions (exact from print) ────────────────────────────────────
@@ -98,6 +98,16 @@ export default function DeadlinePage() {
 
     // ── Salvar lead parcial no localStorage ──
     upsertLeadFromData(updatedData, 4);
+    // Enviar para Google Sheets (fonte compartilhada)
+    upsertLeadProgress({
+      codigoPrevia: updatedData.codigoPrevia ?? '',
+      ultimaEtapa:  'deadline',
+      status:       'em_andamento',
+      objetivo:     updatedData.objectiveLabel,
+      investimento_estimado: updatedData.investmentLabel,
+      prazo:        DEADLINE_LABELS[selected],
+      origem:       updatedData.origem ?? 'space_planner',
+    });
     console.log('UPSERT LEAD PROGRESS (DeadlinePage):', { codigoPrevia: updatedData.codigoPrevia, step: 4, deadline: DEADLINE_LABELS[selected] });
 
     // Fire Google Sheets event (non-blocking)

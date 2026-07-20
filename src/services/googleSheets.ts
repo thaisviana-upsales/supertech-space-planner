@@ -78,13 +78,23 @@ function flushPendingQueue(): void {
 }
 
 // ── Código de prévia único ─────────────────────────────────────────────────────
+// CORREÇÃO CRÍTICA: Usar localStorage (não sessionStorage) para que o código
+// persista mesmo que o usuário feche e reabra a aba. sessionStorage é destruído
+// ao fechar a aba, fazendo o lead perder seu identificador e não ser deduplificado.
 const PREVIEW_CODE_KEY = 'ssp_preview_code';
 
 export function getOrCreatePreviewCode(): string {
-  const stored = sessionStorage.getItem(PREVIEW_CODE_KEY);
+  // Migrar código legado de sessionStorage para localStorage (compatibilidade)
+  const legacy = sessionStorage.getItem(PREVIEW_CODE_KEY);
+  if (legacy) {
+    localStorage.setItem(PREVIEW_CODE_KEY, legacy);
+    sessionStorage.removeItem(PREVIEW_CODE_KEY);
+    return legacy;
+  }
+  const stored = localStorage.getItem(PREVIEW_CODE_KEY);
   if (stored) return stored;
   const code = `SSP-${Math.floor(1000 + Math.random() * 9000)}-${new Date().getFullYear()}`;
-  sessionStorage.setItem(PREVIEW_CODE_KEY, code);
+  localStorage.setItem(PREVIEW_CODE_KEY, code);
   return code;
 }
 
@@ -259,4 +269,152 @@ export function updateLeadStatusToSheets(lead: LeadSheetData): void {
       consentimento_lgpd:   true,
     },
   });
+}
+
+// ── 5. upsertLeadProgress — enviar lead parcial para Google Sheets ─────────────
+/**
+ * Função central para salvar progresso do lead em cada etapa.
+ * É chamada em todas as etapas da jornada.
+ * Envia para Google Sheets mesmo sem nome/telefone/cidade.
+ * O Apps Script aceita type: 'lead_progress' — se não reconhecer, trata como 'lead'.
+ */
+export interface LeadProgressPayload {
+  codigoPrevia: string;
+  ultimaEtapa: string;
+  status: string;
+  // Campos opcionais — preenchidos conforme o usuário avança
+  nome?: string;
+  telefone?: string;
+  cidade?: string;
+  uf?: string;
+  segmento?: string;
+  objetivo?: string;
+  investimento_estimado?: string;
+  categoria_projeto?: string;
+  prazo?: string;
+  equipamentos_count?: number;
+  valor_estimado?: number;
+  enviou_consultor?: boolean;
+  vendedor_nome?: string;
+  vendedor_whatsapp?: string;
+  regiao_atendimento?: string;
+  roteamento_criterio?: string;
+  roteamento_chave?: string;
+  origem?: string;
+}
+
+export function upsertLeadProgress(payload: LeadProgressPayload): void {
+  send({
+    type: 'lead_progress' as unknown as SheetPayload['type'],
+    payload: {
+      data_criacao:         nowISO(),
+      data_atualizacao:     nowISO(),
+      codigo_previa:        payload.codigoPrevia,
+      ultima_etapa:         payload.ultimaEtapa,
+      status:               payload.status,
+      nome:                 payload.nome                    ?? '',
+      telefone:             payload.telefone                ?? '',
+      ddd:                  ddd(payload.telefone),
+      cidade:               payload.cidade                  ?? '',
+      uf:                   payload.uf                      ?? '',
+      segmento:             payload.segmento                ?? '',
+      objetivo:             payload.objetivo                ?? '',
+      investimento_estimado: payload.investimento_estimado  ?? '',
+      categoria_projeto:    payload.categoria_projeto       ?? '',
+      prazo:                payload.prazo                   ?? '',
+      equipamentos_count:   payload.equipamentos_count      ?? 0,
+      valor_estimado:       payload.valor_estimado          ?? 0,
+      enviou_consultor:     payload.enviou_consultor        ?? false,
+      vendedor_nome:        payload.vendedor_nome           ?? '',
+      vendedor_whatsapp:    payload.vendedor_whatsapp       ?? '',
+      regiao_atendimento:   payload.regiao_atendimento      ?? '',
+      roteamento_criterio:  payload.roteamento_criterio     ?? '',
+      roteamento_chave:     payload.roteamento_chave        ?? '',
+      origem:               payload.origem                  ?? 'space_planner',
+      user_agent:           typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 120) : '',
+    },
+  } as unknown as SheetPayload);
+  console.log('LEAD PROGRESS SENT TO SHARED SOURCE:', { codigoPrevia: payload.codigoPrevia, etapa: payload.ultimaEtapa, status: payload.status });
+}
+
+// ── 6. fetchLeadsFromSheets — ler leads do Google Sheets para o painel admin ───
+/**
+ * Lê leads do Google Sheets via GET com ?action=getLeads para o painel admin.
+ * Requer que o Apps Script implemente doGet() retornando JSON dos leads.
+ * Retorna array vazio se o endpoint não suportar GET ou se falhar.
+ */
+export interface SheetLeadRow {
+  codigo_previa?: string;
+  data_criacao?: string;
+  data_atualizacao?: string;
+  ultima_etapa?: string;
+  status?: string;
+  nome?: string;
+  telefone?: string;
+  ddd?: string;
+  cidade?: string;
+  uf?: string;
+  segmento?: string;
+  objetivo?: string;
+  investimento_estimado?: string;
+  categoria_projeto?: string;
+  prazo?: string;
+  equipamentos_count?: number | string;
+  valor_estimado?: number | string;
+  enviou_consultor?: boolean | string;
+  vendedor_nome?: string;
+  vendedor_whatsapp?: string;
+  regiao_atendimento?: string;
+  roteamento_criterio?: string;
+  roteamento_chave?: string;
+  origem?: string;
+  [key: string]: unknown;
+}
+
+export async function fetchLeadsFromSheets(): Promise<SheetLeadRow[]> {
+  // Estratégia 1: proxy Vercel /api/leads (sem CORS, lê do Apps Script server-side)
+  // Funciona em produção (Vercel deploy). Em dev local usa fallback.
+  const proxyUrl = '/api/leads';
+
+  try {
+    const resp = await fetch(proxyUrl, { method: 'GET', cache: 'no-store' });
+    if (resp.ok) {
+      const json = await resp.json() as unknown;
+      if (json && typeof json === 'object') {
+        const obj = json as Record<string, unknown>;
+        const source = obj['source'] as string | undefined;
+        if (Array.isArray(obj['leads'])) {
+          console.log('[Sheets] fetchLeadsFromSheets via proxy:', (obj['leads'] as unknown[]).length, 'leads — source:', source ?? 'proxy');
+          return obj['leads'] as SheetLeadRow[];
+        }
+      }
+      if (Array.isArray(json)) return json as SheetLeadRow[];
+    }
+  } catch {
+    // Proxy indisponível (dev local sem Vercel) — tentar direto
+  }
+
+  // Estratégia 2: chamada direta ao Apps Script (funciona se doGet() estiver implementado)
+  // Pode falhar com CORS em alguns browsers, mas tenta mesmo assim.
+  try {
+    const url = `${WEBHOOK_URL}?action=getLeads`;
+    const resp = await fetch(url, { method: 'GET', cache: 'no-store' });
+    if (!resp.ok) return [];
+    const text = await resp.text();
+    if (!text.startsWith('{') && !text.startsWith('[')) {
+      console.warn('[Sheets] Apps Script não retornou JSON (doGet não implementado). Use o arquivo apps-script/Code.gs para atualizar.');
+      return [];
+    }
+    const json = JSON.parse(text) as unknown;
+    if (Array.isArray(json)) return json as SheetLeadRow[];
+    if (json && typeof json === 'object') {
+      const obj = json as Record<string, unknown>;
+      if (Array.isArray(obj['leads'])) return obj['leads'] as SheetLeadRow[];
+      if (Array.isArray(obj['data']))  return obj['data']  as SheetLeadRow[];
+    }
+    return [];
+  } catch (err) {
+    console.warn('[Sheets] fetchLeadsFromSheets falhou (CORS ou rede) — painel usando apenas localStorage:', err);
+    return [];
+  }
 }

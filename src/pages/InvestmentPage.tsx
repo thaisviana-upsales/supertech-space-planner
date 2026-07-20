@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { usePlanner } from '../context/PlannerContext';
-import { saveEventToSheets } from '../services/googleSheets';
+import { saveEventToSheets, upsertLeadProgress } from '../services/googleSheets';
 import { upsertLeadFromData } from '../utils/leadStorage';
 
 // ── Scale helpers ─────────────────────────────────────────────────────────────
@@ -124,6 +124,16 @@ export default function InvestmentPage() {
 
     // ── Salvar lead parcial no localStorage ──
     upsertLeadFromData(updatedData, 3);
+    // Enviar para Google Sheets (fonte compartilhada)
+    upsertLeadProgress({
+      codigoPrevia:        updatedData.codigoPrevia ?? '',
+      ultimaEtapa:         'investment',
+      status:              'em_andamento',
+      objetivo:            updatedData.objectiveLabel,
+      investimento_estimado: label,
+      categoria_projeto:   currentTier.label,
+      origem:              updatedData.origem ?? 'space_planner',
+    });
     console.log('UPSERT LEAD PROGRESS (InvestmentPage):', { codigoPrevia: updatedData.codigoPrevia, step: 3, investmentLabel: label });
 
     // Fire Google Sheets event (non-blocking)

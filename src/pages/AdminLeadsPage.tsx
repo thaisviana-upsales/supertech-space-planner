@@ -3,9 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { MessageCircle, X, RefreshCw, Trash2 } from 'lucide-react';
 import {
   readLeads, ensureMockSeeded,
-  getLastStepLabel, formatDateTime,
+  getLastStepLabel, formatDateTime, consolidateLeads,
+  getInvestmentMidpoint, getInvestmentCategory,
   type LeadRecord,
 } from '../utils/leadStorage';
+import { fetchLeadsFromSheets as fetchSheetLeads } from '../services/googleSheets';
+import type { SheetLeadRow } from '../services/googleSheets';
 import WhatsAppModal from '../components/WhatsAppModal';
 import AdminInstallCard from '../components/AdminInstallCard';
 
@@ -143,24 +146,79 @@ export default function AdminLeadsPage() {
   const [sortFilter,    setSortFilter]    = useState('recent');
   const [vendedorFilter,setVendedorFilter]= useState('Todos');
 
+  // ── Helper: converter linha do Sheets para LeadRecord ────────────────────────
+  function sheetRowToLeadRecord(row: SheetLeadRow): LeadRecord {
+    const mid = getInvestmentMidpoint(String(row.investimento_estimado ?? ''));
+    // Inferir step da ultima_etapa
+    const stepMap: Record<string, number> = {
+      intro: 1, objective: 2, investment: 3, deadline: 4, profile: 5,
+      catalog: 6, review: 6, visualize: 7, visualise: 7,
+      enviado: 8, confirmation: 8, confirmacao: 8,
+      consultor_direto: 9, falar_com_consultor: 9,
+    };
+    const stepKey = String(row.ultima_etapa ?? '').toLowerCase().replace(/\s/g, '_');
+    const step    = stepMap[stepKey] ?? 1;
+
+    return {
+      id:                  `sheet-${row.codigo_previa ?? Math.random()}`,
+      codigoPrevia:        String(row.codigo_previa ?? ''),
+      createdAt:           String(row.data_criacao  ?? new Date().toISOString()),
+      lastStepNum:         step,
+      name:                String(row.nome      ?? ''),
+      phone:               String(row.telefone  ?? ''),
+      city:                String(row.cidade    ?? ''),
+      uf:                  String(row.uf        ?? ''),
+      segment:             String(row.segmento  ?? ''),
+      investmentRange:     String(row.investimento_estimado ?? ''),
+      investmentLabel:     String(row.investimento_estimado ?? ''),
+      investmentMidpoint:  mid,
+      investmentCategory:  getInvestmentCategory(mid),
+      equipmentCount:      Number(row.equipamentos_count ?? 0),
+      totalEstimate:       Number(row.valor_estimado      ?? 0),
+      sentToConsultor:     row.enviou_consultor === true || row.enviou_consultor === 'true' || row.enviou_consultor === '1',
+      objective:           String(row.objetivo          ?? ''),
+      timeline:            String(row.prazo             ?? ''),
+      vendedorNome:        String(row.vendedor_nome       ?? '') || undefined,
+      vendedorWhatsapp:    String(row.vendedor_whatsapp   ?? '') || undefined,
+      regiaoAtendimento:   String(row.regiao_atendimento  ?? '') || undefined,
+      roteamentoCriterio:  String(row.roteamento_criterio ?? '') || undefined,
+      roteamentoChave:     String(row.roteamento_chave    ?? '') || undefined,
+    };
+  }
+
+  // ── Carregar leads: localStorage + Google Sheets (fonte compartilhada) ─────────
+  async function loadAndMergeLeads() {
+    ensureMockSeeded();
+    const localRaw = readLeads(); // já consolidados por codigoPrevia
+
+    // Tentar ler do Google Sheets (fonte compartilhada — captura leads de outros dispositivos)
+    const sheetRows = await fetchSheetLeads();
+    const sheetRecords = sheetRows.map(sheetRowToLeadRecord);
+
+    // Juntar ambas as fontes e consolidar novamente
+    const merged = consolidateLeads([...localRaw, ...sheetRecords]);
+
+    setLeads(merged);
+    console.log('ADMIN RAW LEADS (localStorage):', localRaw.length);
+    console.log('ADMIN RAW LEADS (Sheets):', sheetRecords.length);
+    console.log('ADMIN CONSOLIDATED LEADS:', merged.length);
+    if (merged.length > 0) console.log('ADMIN SAMPLE LEAD:', merged[0]);
+  }
+
   useEffect(() => {
     if (!authed) return;
-    ensureMockSeeded();
-    const loaded = readLeads();
-    setLeads(loaded);
-    console.log('ADMIN LEADS CARREGADOS:', loaded.length, loaded);
+    loadAndMergeLeads();
 
-    // Auto-refresh leads every 60s (only while authed)
+    // Auto-refresh a cada 60s
     const interval = setInterval(() => {
-      const refreshed = readLeads();
-      setLeads(refreshed);
-      console.log('ADMIN LEADS ATUALIZADOS:', refreshed.length);
+      loadAndMergeLeads();
     }, 60_000);
     return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authed]);
 
   function handleRefresh() {
-    setLeads(readLeads());
+    loadAndMergeLeads();
   }
 
   function handleClearAll() {

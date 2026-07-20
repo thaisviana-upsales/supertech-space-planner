@@ -7,7 +7,7 @@ import {
 import { usePlanner } from '../context/PlannerContext';
 import { generatePDF } from '../utils/generatePDF';
 import { upsertLeadFromData } from '../utils/leadStorage';
-import { updateLeadStatusToSheets, saveEventToSheets } from '../services/googleSheets';
+import { updateLeadStatusToSheets, saveEventToSheets, upsertLeadProgress } from '../services/googleSheets';
 import {
   resolveWhatsappDestination,
   openWhatsappWithDestination,
@@ -64,6 +64,29 @@ export default function ConfirmacaoPage() {
     if (savedRef.current) return;
     savedRef.current = true;
     upsertLeadFromData(data, 7);
+    // Enviar para Google Sheets (fonte compartilhada)
+    upsertLeadProgress({
+      codigoPrevia:        data.codigoPrevia ?? previewCode,
+      ultimaEtapa:         'confirmation',
+      status:              data.sentToConsultor ? 'enviado' : 'em_andamento',
+      nome:                data.name,
+      telefone:            data.phone,
+      cidade:              data.city,
+      uf:                  data.uf,
+      segmento:            data.profileLabel,
+      objetivo:            data.objectiveLabel,
+      investimento_estimado: data.investmentLabel,
+      prazo:               data.deadlineLabel,
+      equipamentos_count:  (data.selectedEquipment ?? []).length,
+      valor_estimado:      (data.selectedEquipment ?? []).reduce((s, e) => s + (e.price ?? 0) * e.quantity, 0),
+      enviou_consultor:    data.sentToConsultor ?? false,
+      vendedor_nome:       destination.vendedorNome,
+      vendedor_whatsapp:   destination.whatsapp,
+      regiao_atendimento:  destination.regiaoAtendimento,
+      roteamento_criterio: destination.roteamentoCriterio,
+      roteamento_chave:    destination.roteamentoChave,
+      origem:              data.origem ?? 'space_planner',
+    });
 
     // Save final status to Google Sheets (non-blocking)
     updateLeadStatusToSheets({

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Bot, MessageCircle, Check } from 'lucide-react';
 import { usePlanner } from '../context/PlannerContext';
 import { BRAZIL_LOCATIONS, getCitiesByUF } from '../data/brazilLocations';
-import { saveLeadToSheets, saveEventToSheets } from '../services/googleSheets';
+import { saveLeadToSheets, saveEventToSheets, upsertLeadProgress } from '../services/googleSheets';
 import { openConsultorDirect } from '../utils/consultorDirect';
 import { upsertLeadFromData } from '../utils/leadStorage';
 
@@ -172,6 +172,21 @@ export default function LeadPage() {
 
       // Salvar no localStorage (fonte do painel admin)
       upsertLeadFromData(updatedData, 5);
+      // Enviar para Google Sheets (fonte compartilhada)
+      upsertLeadProgress({
+        codigoPrevia: updatedData.codigoPrevia ?? '',
+        ultimaEtapa:  'profile',
+        status:       'em_andamento',
+        nome:         name.trim(),
+        telefone:     phone.trim(),
+        cidade:       city,
+        uf,
+        segmento:     segment,
+        objetivo:     updatedData.objectiveLabel,
+        investimento_estimado: updatedData.investmentLabel,
+        prazo:        updatedData.deadlineLabel,
+        origem:       updatedData.origem ?? 'space_planner',
+      });
       console.log('UPSERT LEAD PROGRESS (LeadPage/Perfil):', { codigoPrevia: updatedData.codigoPrevia, step: 5, name: updatedData.name });
 
       // Salvar no Google Sheets (não-bloqueante, independente do painel)

@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { usePlanner } from '../context/PlannerContext';
 import { CATALOG, formatPrice, type TabKey, type CatalogProduct } from '../data/catalog';
-import { saveEquipmentsToSheets } from '../services/googleSheets';
+import { saveEquipmentsToSheets, upsertLeadProgress } from '../services/googleSheets';
 import { openConsultorDirect } from '../utils/consultorDirect';
 import { upsertLeadFromData } from '../utils/leadStorage';
 
@@ -313,6 +313,25 @@ export default function CatalogPage() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { setStep(5); }, [setStep]);
+
+  // Registrar entrada no catálogo (mesmo que não adicione equipamentos)
+  useEffect(() => {
+    upsertLeadProgress({
+      codigoPrevia: state.data.codigoPrevia ?? '',
+      ultimaEtapa:  'catalog',
+      status:       'em_andamento',
+      nome:         state.data.name,
+      telefone:     state.data.phone,
+      cidade:       state.data.city,
+      uf:           state.data.uf,
+      segmento:     state.data.profileLabel,
+      objetivo:     state.data.objectiveLabel,
+      investimento_estimado: state.data.investmentLabel,
+      origem:       state.data.origem ?? 'space_planner',
+    });
+    console.log('UPSERT LEAD PROGRESS (CatalogPage/entry):', { codigoPrevia: state.data.codigoPrevia, step: 6 });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const closeLightbox = useCallback(() => setLightboxProduct(null), []);
 
