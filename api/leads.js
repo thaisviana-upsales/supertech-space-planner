@@ -1,24 +1,16 @@
 /**
- * api/leads.js — Vercel Edge Function
- * ══════════════════════════════════════════════════════════════════════════════
- * Lê leads do Google Sheets via CSV export público (sem doGet() no Apps Script).
- * Roda server-side na Vercel → sem problema de CORS.
- *
- * Planilha: 1bK2456aXKjNE8f738c-7eLqs9eT8UoNzO5Aw4WqUroE
- * Aba Leads: gid=2111535274
+ * api/leads.js — Vercel Serverless Function (Node.js)
+ * Lê leads do Google Sheets via CSV export público.
+ * Sem runtime manual — a Vercel detecta automaticamente.
  *
  * GET /api/leads → { leads: [...], total: N, source: 'csv' }
- * ══════════════════════════════════════════════════════════════════════════════
  */
-export const config = { runtime: 'edge' };
 
-// ── Configuração fixa da planilha ─────────────────────────────────────────────
 const SHEET_ID  = '1bK2456aXKjNE8f738c-7eLqs9eT8UoNzO5Aw4WqUroE';
-const SHEET_GID = '2111535274'; // aba Leads
+const SHEET_GID = '2111535274';
 const CSV_URL   = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${SHEET_GID}`;
 
-// ── CORS ──────────────────────────────────────────────────────────────────────
-const CORS = {
+const CORS_HEADERS = {
   'Access-Control-Allow-Origin':  '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
@@ -26,44 +18,26 @@ const CORS = {
   'Cache-Control':                'no-store, max-age=0',
 };
 
-// ── Parser CSV simples (sem dependências) ─────────────────────────────────────
-function parseCSV(text) {
-  const lines = text.trim().split('\n');
-  if (lines.length < 2) return []; // só cabeçalho ou vazio
+const STEP_RANK = {
+  'intro':1, 'objective':2, 'investment':3, 'deadline':4,
+  'profile':5, 'catalog':6, 'review':6,
+  'visualize':7, 'visualise':7,
+  'confirmation':8, 'confirmacao':8, 'enviado':8,
+  'consultor_direto':9, 'falar_com_consultor':9,
+};
 
-  // Parsear cabeçalho
-  const headers = parseCSVLine(lines[0]);
-
-  const rows = [];
-  for (let i = 1; i < lines.length; i++) {
-    const values = parseCSVLine(lines[i]);
-    if (values.every(v => v === '')) continue; // linha vazia
-    const obj = {};
-    headers.forEach((h, idx) => {
-      obj[h.trim()] = (values[idx] ?? '').trim();
-    });
-    rows.push(obj);
-  }
-  return rows;
-}
-
+// ── Parser CSV sem dependências ────────────────────────────────────────────────
 function parseCSVLine(line) {
   const result = [];
   let current = '';
   let inQuotes = false;
-
   for (let i = 0; i < line.length; i++) {
     const ch = line[i];
     if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        current += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
+      if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
+      else inQuotes = !inQuotes;
     } else if (ch === ',' && !inQuotes) {
-      result.push(current);
-      current = '';
+      result.push(current); current = '';
     } else {
       current += ch;
     }
@@ -72,10 +46,23 @@ function parseCSVLine(line) {
   return result;
 }
 
-// ── Normalizar booleanos do CSV (Google Sheets exporta como TRUE/FALSE) ────────
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  if (lines.length < 2) return [];
+  const headers = parseCSVLine(lines[0]);
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const values = parseCSVLine(lines[i]);
+    if (values.every(v => v === '')) continue;
+    const obj = {};
+    headers.forEach((h, idx) => { obj[h.trim()] = (values[idx] || '').trim(); });
+    rows.push(obj);
+  }
+  return rows;
+}
+
 function normalizeLead(row) {
-  const booleans = ['enviou_consultor', 'consentimento_lgpd'];
-  booleans.forEach(k => {
+  ['enviou_consultor', 'consentimento_lgpd'].forEach(k => {
     if (k in row) {
       const v = String(row[k]).toUpperCase();
       row[k] = v === 'TRUE' || v === '1' || v === 'SIM';
@@ -84,20 +71,20 @@ function normalizeLead(row) {
   return row;
 }
 
-// ── Handler principal ─────────────────────────────────────────────────────────
-export default async function handler(req) {
+// ── Handler Vercel (CommonJS padrão) ──────────────────────────────────────────
+module.exports = async function handler(req, res) {
+  // Definir headers CORS em todas as respostas
+  Object.entries(CORS_HEADERS).forEach(([k, v]) => res.setHeader(k, v));
+
   if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: CORS });
+    return res.status(204).end();
   }
 
   if (req.method !== 'GET') {
-    return new Response(JSON.stringify({ error: 'Método não permitido' }), {
-      status: 405, headers: CORS,
-    });
+    return res.status(405).json({ error: 'Método não permitido' });
   }
 
   try {
-    // ── Leitura direta do CSV público da planilha ──────────────────────────────
     const csvResp = await fetch(CSV_URL, {
       method: 'GET',
       headers: { 'Accept': 'text/csv,text/plain,*/*' },
@@ -105,36 +92,19 @@ export default async function handler(req) {
     });
 
     if (!csvResp.ok) {
-      console.error('[api/leads] CSV export falhou:', csvResp.status);
-      return new Response(JSON.stringify({ leads: [], total: 0, source: 'error', status: csvResp.status }), {
-        status: 200, headers: CORS,
-      });
+      console.error('[api/leads] CSV falhou:', csvResp.status);
+      return res.status(200).json({ leads: [], total: 0, source: 'error', status: csvResp.status });
     }
 
     const csvText = await csvResp.text();
 
-    // Verificar se é HTML de erro (planilha privada ou inválida)
     if (csvText.trim().startsWith('<!DOCTYPE') || csvText.trim().startsWith('<html')) {
-      console.warn('[api/leads] Planilha retornou HTML — verifique se está pública (Compartilhar > Qualquer pessoa com o link)');
-      return new Response(JSON.stringify({ leads: [], total: 0, source: 'private', error: 'Planilha não pública' }), {
-        status: 200, headers: CORS,
-      });
+      console.warn('[api/leads] Planilha retornou HTML — não está pública');
+      return res.status(200).json({ leads: [], total: 0, source: 'private' });
     }
 
-    const rawLeads  = parseCSV(csvText).map(normalizeLead);
-    const STEP_RANK = {
-      'intro': 1, 'objective': 2, 'investment': 3, 'deadline': 4,
-      'profile': 5, 'catalog': 6, 'review': 6,
-      'visualize': 7, 'visualise': 7,
-      'confirmation': 8, 'confirmacao': 8, 'enviado': 8,
-      'consultor_direto': 9, 'falar_com_consultor': 9,
-      // Labels em PT (caso venham da coluna ultima_etapa)
-      'Início': 1, 'Objetivo': 2, 'Investimento': 3, 'Prazo': 4,
-      'Perfil': 5, 'Equipamentos': 6, 'Prévia do projeto': 7,
-      'Confirmação': 8, 'Enviado': 8, 'Consultor Direto': 9,
-    };
+    const rawLeads = parseCSV(csvText).map(normalizeLead);
 
-    // Consolidar por codigo_previa — manter o registro mais avançado
     const byCode  = {};
     const byPhone = {};
     const noKey   = [];
@@ -161,22 +131,13 @@ export default async function handler(req) {
       ...Object.values(byCode),
       ...Object.values(byPhone),
       ...noKey,
-    ].sort((a, b) => {
-      const da = new Date(a.data_criacao || 0).getTime();
-      const db = new Date(b.data_criacao || 0).getTime();
-      return db - da;
-    });
+    ].sort((a, b) => new Date(b.data_criacao || 0) - new Date(a.data_criacao || 0));
 
-    console.log(`[api/leads] CSV lido: ${rawLeads.length} linhas brutas → ${leads.length} leads consolidados`);
-
-    return new Response(JSON.stringify({ leads, total: leads.length, source: 'csv' }), {
-      status: 200, headers: CORS,
-    });
+    console.log(`[api/leads] ${rawLeads.length} linhas → ${leads.length} consolidados`);
+    return res.status(200).json({ leads, total: leads.length, source: 'csv' });
 
   } catch (err) {
-    console.error('[api/leads] Erro inesperado:', err);
-    return new Response(JSON.stringify({ leads: [], total: 0, source: 'error', error: String(err) }), {
-      status: 200, headers: CORS,
-    });
+    console.error('[api/leads] Erro:', err);
+    return res.status(200).json({ leads: [], total: 0, source: 'error', error: String(err) });
   }
-}
+};
