@@ -11,6 +11,7 @@ import { updateLeadStatusToSheets, saveEventToSheets, upsertLeadProgress } from 
 import {
   resolveWhatsappDestination,
   openWhatsappWithDestination,
+  buildDestinationSuffix,
 } from '../data/whatsappRouting';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -131,15 +132,22 @@ export default function ConfirmacaoPage() {
   }
 
   function handleOpenWhatsApp() {
+    const suffix = buildDestinationSuffix(destination);
     const msg = [
       `Olá! Acabei de enviar minha prévia via Supertech Space Planner™. Código: ${
         data.codigoPrevia ?? previewCode
       }`,
       '',
       `📍 *Origem:* ${data.city ?? ''}${data.uf ? `, ${data.uf}` : ''}`,
+      suffix,
     ].join('\n');
 
-    openWhatsappWithDestination(destination, msg);
+    openWhatsappWithDestination(destination, msg, {
+      phone:        data.phone,
+      city:         data.city,
+      uf:           data.uf,
+      codigoPrevia: data.codigoPrevia,
+    });
 
     // Mark as sent in Sheets (non-blocking)
     updateLeadStatusToSheets({

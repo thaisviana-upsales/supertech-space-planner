@@ -14,6 +14,7 @@ import {
   resolveWhatsappDestination,
   openWhatsappWithDestination,
   extractDDDFromPhone,
+  buildDestinationSuffix,
   type RoutingDestination,
 } from '../data/whatsappRouting';
 import { upsertLeadFromData } from './leadStorage';
@@ -47,6 +48,8 @@ export function isDestinationSafe(destination: RoutingDestination): boolean {
 export interface ConsultorDirectLeadData {
   name?: string;
   phone?: string;
+  telefone?: string;
+  whatsapp?: string;
   city?: string;
   uf?: string;
   codigoPrevia?: string;
@@ -60,8 +63,11 @@ export interface ConsultorDirectLeadData {
 }
 
 // ── Mensagem para consultor direto (sem prévia finalizada) ────────────────────
-export function buildConsultorDirectMessage(lead: ConsultorDirectLeadData): string {
-  const ddd = extractDDDFromPhone(lead.phone) ?? 'não identificado';
+export function buildConsultorDirectMessage(
+  lead: ConsultorDirectLeadData,
+  destination?: RoutingDestination,
+): string {
+  const ddd = destination?.leadDdd || extractDDDFromPhone(lead.phone || lead.telefone || lead.whatsapp) || 'não identificado';
 
   const lines: string[] = [
     'Olá, equipe Supertech! Tudo bem? 👋',
@@ -70,7 +76,7 @@ export function buildConsultorDirectMessage(lead: ConsultorDirectLeadData): stri
     '',
     '📌 Origem: Supertech Space Planner™',
     `👤 Nome: ${lead.name || 'Não informado'}`,
-    `📲 WhatsApp: ${lead.phone || 'Não informado'}`,
+    `📲 WhatsApp: ${lead.phone || lead.telefone || lead.whatsapp || 'Não informado'}`,
     `📍 Localidade: ${lead.city || '—'}/${lead.uf || '—'}`,
     `☎️ DDD identificado: ${ddd}`,
     '',
@@ -95,6 +101,10 @@ export function buildConsultorDirectMessage(lead: ConsultorDirectLeadData): stri
   lines.push('');
   lines.push('Aguardo o contato de um consultor Supertech. 🚀');
 
+  if (destination) {
+    lines.push(buildDestinationSuffix(destination));
+  }
+
   return lines.join('\n');
 }
 
@@ -107,9 +117,10 @@ export function saveConsultorDirectLead(
   lead: ConsultorDirectLeadData,
   destination: RoutingDestination,
 ): void {
+  const phoneVal = lead.phone || lead.telefone || lead.whatsapp || '';
   const projectData: Partial<ProjectData> = {
     name:               lead.name,
-    phone:              lead.phone,
+    phone:              phoneVal,
     city:               lead.city,
     uf:                 lead.uf,
     codigoPrevia:       lead.codigoPrevia,
@@ -131,11 +142,11 @@ export function saveConsultorDirectLead(
   upsertLeadFromData(projectData as ProjectData, 9);
 
   // Salvar no Google Sheets (non-blocking)
-  const ddd = extractDDDFromPhone(lead.phone) ?? '';
+  const ddd = destination.leadDdd || extractDDDFromPhone(phoneVal) || '';
   saveLeadToSheets({
     codigoPrevia:         lead.codigoPrevia ?? '',
     nome:                 lead.name,
-    telefone:             lead.phone,
+    telefone:             phoneVal,
     cidade:               lead.city,
     uf:                   lead.uf,
     segmento:             lead.profileLabel || lead.segment,
@@ -167,45 +178,39 @@ export function saveConsultorDirectLead(
  * Abre WhatsApp para o consultor correto baseado no DDD do lead.
  * Usa exatamente a mesma função resolveWhatsappDestination do envio final.
  *
- * Se o destino for proibido, usa o segundo da pool como fallback.
- * Salva lead parcial automaticamente.
- *
  * @returns true se abriu com sucesso, false se bloqueado.
  */
 export function openConsultorDirect(lead: ConsultorDirectLeadData): boolean {
-  // ── Logs de diagnóstico (Etapa 10) ───────────────────────────────────────
-  const resolvedDDD = extractDDDFromPhone(lead.phone) ?? lead.uf ?? 'não identificado';
-
-  console.log('=== CONSULTOR DIRETO ===');
-  console.log('Lead data:', lead);
-  console.log('DDD resolvido:', resolvedDDD);
+  const phoneVal = lead.phone || lead.telefone || lead.whatsapp || '';
 
   const destination = resolveWhatsappDestination({
-    phone:        lead.phone,
+    phone:        phoneVal,
+    telefone:     phoneVal,
     city:         lead.city,
     uf:           lead.uf,
     codigoPrevia: lead.codigoPrevia,
   });
 
-  console.log('Destino resolvido:', destination);
-  console.log('Número final:', destination.whatsapp);
-  console.log('Critério:', destination.roteamentoCriterio);
-  console.log('Chave:', destination.roteamentoChave);
-
-  // ── Trava de segurança (Etapa 9) ─────────────────────────────────────────
+  // ── Trava de segurança ──────────────────────────────────────────────────
   if (!isDestinationSafe(destination)) {
-    // Não abrir WhatsApp para número proibido
     return false;
   }
 
   // ── Montar mensagem ───────────────────────────────────────────────────────
-  const message = buildConsultorDirectMessage(lead);
+  const message = buildConsultorDirectMessage(lead, destination);
 
-  // ── Salvar lead parcial (Etapa 6) ─────────────────────────────────────────
+  // ── Salvar lead parcial ───────────────────────────────────────────────────
   saveConsultorDirectLead(lead, destination);
 
-  // ── Abrir WhatsApp ────────────────────────────────────────────────────────
-  openWhatsappWithDestination(destination, message);
+  // ── Abrir WhatsApp com logs obrigatórios ──────────────────────────────────
+  openWhatsappWithDestination(destination, message, {
+    phone:        phoneVal,
+    telefone:     phoneVal,
+    city:         lead.city,
+    uf:           lead.uf,
+    codigoPrevia: lead.codigoPrevia,
+  });
 
   return true;
 }
+

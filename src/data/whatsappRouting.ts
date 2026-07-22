@@ -3,13 +3,13 @@
  * ──────────────────────────────────────────────────────────────────────────────
  * Lógica de roteamento do WhatsApp para o Supertech Space Planner™.
  *
- * Prioridade:
- *  1. DDD extraído do telefone do lead
- *  2. Cidade + UF (cityRoutingOverrides)
- *  3. UF como fallback
- *  4. Fallback final → pool de vendedores internos
+ * Prioridade Absoluta:
+ *  1. DDD extraído exclusivamente do telefone/WhatsApp preenchido pelo lead.
+ *  2. Cidade + UF (apenas se DDD não for identificado)
+ *  3. UF (apenas se DDD e Cidade não forem identificados)
+ *  4. Fallback final → pool de vendedores internos SP
  *
- * Numero "Comercial Geral" (11 99235-4185 / 5511992354185) NUNCA é usado.
+ * Número "Comercial Geral" (11 99235-4185 / 5511992354185) NUNCA é usado.
  * ──────────────────────────────────────────────────────────────────────────────
  */
 
@@ -26,31 +26,47 @@ export interface RoutingDestination {
   whatsapp: string;
   /** Nome do vendedor / representante */
   vendedorNome: string;
-  /** Região de atendimento (ex: "SP / DDD 11") */
+  /** Região de atendimento (ex: "SUPERTECH FITNESS / DDD 19") */
   regiaoAtendimento: string;
-  /** Critério usado: 'ddd' | 'cidade_uf' | 'uf' | 'fallback' */
-  roteamentoCriterio: 'ddd' | 'cidade_uf' | 'uf' | 'fallback';
-  /** Chave de roteamento (ex: "11", "Bauru-SP", "PA", "fallback_interno") */
+  /** Critério usado: 'ddd' | 'ddd_lead' | 'cidade_uf' | 'uf' | 'fallback' */
+  roteamentoCriterio: 'ddd' | 'ddd_lead' | 'cidade_uf' | 'uf' | 'fallback';
+  /** Chave de roteamento (ex: "19", "54", "Bauru-SP") */
   roteamentoChave: string;
+
+  // Campos explícitos solicitados no requisito:
+  leadDdd?: string | null;
+  vendedor_nome?: string;
+  vendedor_whatsapp?: string;
+  regiao_atendimento?: string;
+  roteamento_criterio?: string;
+  roteamento_chave?: string;
+  regra_aplicada?: string;
+  isFallback?: boolean;
 }
 
 export interface LeadRoutingData {
   phone?: string;
+  telefone?: string;
+  whatsapp?: string;
+  celular?: string;
   city?: string;
+  cidade?: string;
   uf?: string;
   codigoPrevia?: string;
-  /** DDD explícito, se vier de query param */
+  /** DDD explícito do lead, se disponível */
   ddd?: string;
+  [key: string]: any;
 }
 
-// ── Pool de vendedores internos ───────────────────────────────────────────────
+// ── Pool de vendedores internos SP ───────────────────────────────────────────
 // NÃO inclui Comercial Geral (11 99235-4185)
+// Pool oficial de SP: Alef, Juan, Pedro, Robson, Valter
 
 export const INTERNAL_SELLERS: Seller[] = [
+  { nome: 'Alef',   whatsapp: '5511917491234', empresa: 'SUPERTECH FITNESS' },
+  { nome: 'Juan',   whatsapp: '5511989483896', empresa: 'SUPERTECH FITNESS' },
   { nome: 'Pedro',  whatsapp: '5511934210027', empresa: 'SUPERTECH FITNESS' },
   { nome: 'Robson', whatsapp: '5511991743237', empresa: 'SUPERTECH FITNESS' },
-  { nome: 'Juan',   whatsapp: '5511989483896', empresa: 'SUPERTECH FITNESS' },
-  { nome: 'Alef',   whatsapp: '5511917491234', empresa: 'SUPERTECH FITNESS' },
   { nome: 'Valter', whatsapp: '5511991711964', empresa: 'SUPERTECH FITNESS' },
 ];
 
@@ -99,49 +115,74 @@ const REP_MB: Seller = {
   nome: 'Mauricio Borges', whatsapp: '559181320001', empresa: 'MB EQUIPAMENTOS FITNESS',
 };
 
-// ── Chave de localStorage para manter vendedor do mesmo lead ─────────────────
-const ROUTING_CACHE_KEY = 'ssp_routing_cache';
-
-function getRoutingCache(): Record<string, RoutingDestination> {
-  try {
-    const raw = localStorage.getItem(ROUTING_CACHE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch { return {}; }
-}
-
-function setRoutingCache(cache: Record<string, RoutingDestination>): void {
-  try {
-    localStorage.setItem(ROUTING_CACHE_KEY, JSON.stringify(cache));
-  } catch { /* silently ignore */ }
-}
-
-// ── Funções auxiliares ────────────────────────────────────────────────────────
+// ── Funções auxiliares de extração e normalização ────────────────────────────
 
 /** Remove tudo que não é dígito */
-export function normalizePhoneNumber(phone: string): string {
-  return phone.replace(/\D/g, '');
+export function normalizePhoneNumber(phone?: string | null): string {
+  if (!phone) return '';
+  return phone.toString().replace(/\D/g, '');
 }
 
-/** Extrai DDD (2 dígitos) do telefone. Retorna null se não conseguir. */
-export function extractDDDFromPhone(phone?: string): string | null {
+/**
+ * Extrai o DDD (2 dígitos nacionais) do telefone do lead de forma segura.
+ *
+ * Regras:
+ * - Entrada "11999990000" -> DDD "11"
+ * - Entrada "(19) 99999-0000" -> DDD "19"
+ * - Entrada "+55 54 99999-0000" -> DDD "54"
+ * - Entrada "5551999990000" -> DDD "51"
+ * - Entrada "54 99999-0000" -> DDD "54"
+ * - Entrada vazia -> null
+ *
+ * Se começar com 55 e tiver 12 ou 13 dígitos (55 + 2 DDD + 8/9 número), remove 55 antes de extrair o DDD.
+ */
+export function extractLeadDDD(phone?: string | null): string | null {
   if (!phone) return null;
-  const digits = normalizePhoneNumber(phone);
+  const digits = phone.toString().replace(/\D/g, '');
   if (!digits) return null;
 
-  // 5511999... → remove prefixo 55 → 11...
-  let local = digits;
-  if (local.startsWith('55') && local.length >= 12) {
-    local = local.slice(2);
+  // Se o valor fornecido for diretamente o DDD com 2 dígitos
+  if (digits.length === 2) {
+    const val = parseInt(digits, 10);
+    if (val >= 11 && val <= 99) return digits;
+    return null;
   }
 
-  // Precisa ter pelo menos 10 dígitos (DDD + número)
-  if (local.length < 10) return null;
+  let local = digits;
 
-  const ddd = local.slice(0, 2);
-  // DDD válido: 11–99 (exceto 00/01-10 que não existem no Brasil)
-  if (parseInt(ddd, 10) < 11) return null;
-  return ddd;
+  // Tratar prefixo 55
+  if (local.startsWith('55')) {
+    if (local.length === 12 || local.length === 13) {
+      local = local.slice(2);
+    } else if (local.length > 13) {
+      local = local.slice(2);
+    } else if (local.length === 10 || local.length === 11) {
+      const candidateDdd = parseInt(local.slice(2, 4), 10);
+      if (candidateDdd >= 11 && candidateDdd <= 99) {
+        local = local.slice(2);
+      }
+    }
+  }
+
+  // DDD de 2 dígitos do número local
+  if (local.length >= 10) {
+    const ddd = local.slice(0, 2);
+    const val = parseInt(ddd, 10);
+    if (val >= 11 && val <= 99) return ddd;
+  }
+
+  // Fallback para entradas parciais que começam com DDD válido
+  if (local.length >= 2) {
+    const ddd = local.slice(0, 2);
+    const val = parseInt(ddd, 10);
+    if (val >= 11 && val <= 99) return ddd;
+  }
+
+  return null;
 }
+
+/** Alias para manter compatibilidade com importações existentes */
+export const extractDDDFromPhone = extractLeadDDD;
 
 /** Normaliza nome de cidade: sem acento, lowercase, sem espaços extras */
 export function normalizeCityName(city: string): string {
@@ -160,21 +201,19 @@ export function normalizeUF(uf: string): string {
 
 /**
  * Hash simples e estável para selecionar vendedor do pool.
- * Garante que o mesmo routingKey sempre escolhe o mesmo índice.
  */
 function stableHash(key: string): number {
   let hash = 0;
   for (let i = 0; i < key.length; i++) {
     const char = key.charCodeAt(i);
     hash = (hash << 5) - hash + char;
-    hash |= 0; // Convert to 32bit int
+    hash |= 0;
   }
   return Math.abs(hash);
 }
 
 /**
  * Seleciona vendedor do pool de forma estável baseado em routingKey.
- * Garante distribuição igualitária e consistência para o mesmo lead.
  */
 export function selectSellerFromPool(pool: Seller[], routingKey: string): Seller {
   if (!pool.length) return INTERNAL_SELLERS[0];
@@ -189,7 +228,7 @@ type DDDEntry =
   | { type: 'fixed'; seller: Seller };
 
 const DDD_MAP: Record<string, DDDEntry> = {
-  // 11, 12, 13, 15, 17, 18, 19 → pool interno
+  // DDDs 11, 12, 13, 15, 17, 18, 19 → pool interno Supertech Fitness SP
   '11': { type: 'pool', pool: INTERNAL_SELLERS },
   '12': { type: 'pool', pool: INTERNAL_SELLERS },
   '13': { type: 'pool', pool: INTERNAL_SELLERS },
@@ -198,76 +237,76 @@ const DDD_MAP: Record<string, DDDEntry> = {
   '18': { type: 'pool', pool: INTERNAL_SELLERS },
   '19': { type: 'pool', pool: INTERNAL_SELLERS },
 
-  // 14, 16 → Renan/Diego - Globo Sports
+  // DDDs 14, 16 → Renan / Diego - Globo Sports (Bauru-SP)
   '14': { type: 'fixed', seller: REP_GLOBO_SPORTS },
   '16': { type: 'fixed', seller: REP_GLOBO_SPORTS },
 
-  // 21, 22, 24 → Igor - RJ
+  // DDDs 21, 22, 24 → Igor - RJ (Firetech)
   '21': { type: 'fixed', seller: REP_FIRETECH },
   '22': { type: 'fixed', seller: REP_FIRETECH },
   '24': { type: 'fixed', seller: REP_FIRETECH },
 
-  // 27, 28 → Mateus - ES
+  // DDDs 27, 28 → Mateus - ES
   '27': { type: 'fixed', seller: REP_MATEUS },
   '28': { type: 'fixed', seller: REP_MATEUS },
 
-  // 31, 32, 33, 37, 38 → BH Fitness
+  // DDDs 31, 32, 33, 37, 38 → Gustavo - BH Fitness (MG)
   '31': { type: 'fixed', seller: REP_BH_FITNESS },
   '32': { type: 'fixed', seller: REP_BH_FITNESS },
   '33': { type: 'fixed', seller: REP_BH_FITNESS },
   '37': { type: 'fixed', seller: REP_BH_FITNESS },
   '38': { type: 'fixed', seller: REP_BH_FITNESS },
 
-  // 34, 35 → Alef (vendedor interno, mas número fixo Supertech)
+  // DDDs 34, 35 → Alef (vendedor interno Supertech)
   '34': { type: 'fixed', seller: { nome: 'Alef', whatsapp: '5511917491234', empresa: 'SUPERTECH FITNESS' } },
   '35': { type: 'fixed', seller: { nome: 'Alef', whatsapp: '5511917491234', empresa: 'SUPERTECH FITNESS' } },
 
-  // 41, 42, 43, 44, 46 → Danilo / Curitiba-PR
+  // DDDs 41, 42, 43, 44, 46 → Danilo / Curitiba-PR
   '41': { type: 'fixed', seller: REP_DANILO },
   '42': { type: 'fixed', seller: REP_DANILO },
   '43': { type: 'fixed', seller: REP_DANILO },
   '44': { type: 'fixed', seller: REP_DANILO },
   '46': { type: 'fixed', seller: REP_DANILO },
 
-  // 45 → Valmir - Cascavel/PR
+  // DDD 45 → Valmir - Cascavel/PR (VJK Fitness)
   '45': { type: 'fixed', seller: REP_VJK },
 
-  // 47, 48, 49 → pool interno
+  // DDDs 47, 48, 49 → pool interno Supertech Fitness
   '47': { type: 'pool', pool: INTERNAL_SELLERS },
   '48': { type: 'pool', pool: INTERNAL_SELLERS },
   '49': { type: 'pool', pool: INTERNAL_SELLERS },
 
-  // 51, 53, 54, 55 → Alessandro - RS
+  // DDDs 51, 53, 54, 55 → Alessandro - RS
   '51': { type: 'fixed', seller: REP_ALESSANDRO },
   '53': { type: 'fixed', seller: REP_ALESSANDRO },
   '54': { type: 'fixed', seller: REP_ALESSANDRO },
   '55': { type: 'fixed', seller: REP_ALESSANDRO },
 
-  // 61 → pool interno
+  // DDD 61 → pool interno Supertech Fitness
   '61': { type: 'pool', pool: INTERNAL_SELLERS },
 
-  // 62, 64 → Rodrigo Gomes - Orange
+  // DDDs 62, 64 → Rodrigo Gomes - Orange (GO)
   '62': { type: 'fixed', seller: REP_ORANGE },
   '64': { type: 'fixed', seller: REP_ORANGE },
 
-  // 63 → pool interno
+  // DDD 63 → pool interno Supertech Fitness
   '63': { type: 'pool', pool: INTERNAL_SELLERS },
 
-  // 65, 66 → pool interno
+  // DDDs 65, 66 → pool interno Supertech Fitness
   '65': { type: 'pool', pool: INTERNAL_SELLERS },
   '66': { type: 'pool', pool: INTERNAL_SELLERS },
 
-  // 67 → pool interno
+  // DDD 67 → pool interno Supertech Fitness
   '67': { type: 'pool', pool: INTERNAL_SELLERS },
 
-  // 68, 69, 92, 95, 97 → Marcelo AM e AC
+  // DDDs 68, 69, 92, 95, 97 → Marcelo AM e AC (MC Superfitness)
   '68': { type: 'fixed', seller: REP_MC },
   '69': { type: 'fixed', seller: REP_MC },
   '92': { type: 'fixed', seller: REP_MC },
   '95': { type: 'fixed', seller: REP_MC },
   '97': { type: 'fixed', seller: REP_MC },
 
-  // 71, 73, 74, 75, 77, 79 → Alan - Triplle Fitness
+  // DDDs 71, 73, 74, 75, 77, 79 → Alan - Triplle Fitness
   '71': { type: 'fixed', seller: REP_TRIPLLE },
   '73': { type: 'fixed', seller: REP_TRIPLLE },
   '74': { type: 'fixed', seller: REP_TRIPLLE },
@@ -275,50 +314,46 @@ const DDD_MAP: Record<string, DDDEntry> = {
   '77': { type: 'fixed', seller: REP_TRIPLLE },
   '79': { type: 'fixed', seller: REP_TRIPLLE },
 
-  // 81, 87 → Wellington - Superfitness
+  // DDDs 81, 87 → Wellington - Superfitness
   '81': { type: 'fixed', seller: REP_SUPERFITNESS },
   '87': { type: 'fixed', seller: REP_SUPERFITNESS },
 
-  // 82 → pool interno
+  // DDD 82 → pool interno Supertech Fitness
   '82': { type: 'pool', pool: INTERNAL_SELLERS },
 
-  // 83 → Felipe - PB
+  // DDD 83 → Felipe - PB (Joel Jose da Silva)
   '83': { type: 'fixed', seller: REP_JOEL },
 
-  // 84 → pool interno
+  // DDD 84 → pool interno Supertech Fitness
   '84': { type: 'pool', pool: INTERNAL_SELLERS },
 
-  // 85, 88 → Arlindo - Brazil Bike
+  // DDDs 85, 88 → Arlindo - Brazil Bike
   '85': { type: 'fixed', seller: REP_BRAZIL_BIKE },
   '88': { type: 'fixed', seller: REP_BRAZIL_BIKE },
 
-  // 86, 89 → pool interno
+  // DDDs 86, 89 → pool interno Supertech Fitness
   '86': { type: 'pool', pool: INTERNAL_SELLERS },
   '89': { type: 'pool', pool: INTERNAL_SELLERS },
 
-  // 91, 93, 94 → Mauricio Borges - MB
+  // DDDs 91, 93, 94 → Mauricio Borges - MB Equipamentos
   '91': { type: 'fixed', seller: REP_MB },
   '93': { type: 'fixed', seller: REP_MB },
   '94': { type: 'fixed', seller: REP_MB },
 
-  // 96 → pool interno
+  // DDD 96 → pool interno Supertech Fitness
   '96': { type: 'pool', pool: INTERNAL_SELLERS },
 
-  // 98, 99 → pool interno
+  // DDDs 98, 99 → pool interno Supertech Fitness
   '98': { type: 'pool', pool: INTERNAL_SELLERS },
   '99': { type: 'pool', pool: INTERNAL_SELLERS },
 };
 
-// ── Mapa Cidade/UF → Destino ──────────────────────────────────────────────────
+// ── Mapa Cidade/UF → Destino (Usado apenas se DDD do lead não for informado) ────
 
 type CityEntry =
   | { type: 'pool' }
   | { type: 'fixed'; seller: Seller };
 
-/**
- * cityRoutingOverrides: chave = "cidade normalizada|uf"
- * UF sempre uppercase, cidade lowercase sem acento.
- */
 const CITY_ROUTING_OVERRIDES: Record<string, CityEntry> = {
   'sao paulo|SP':          { type: 'pool' },
   'bauru|SP':              { type: 'fixed', seller: REP_GLOBO_SPORTS },
@@ -352,7 +387,7 @@ const CITY_ROUTING_OVERRIDES: Record<string, CityEntry> = {
   'sao luis|MA':           { type: 'pool' },
 };
 
-// ── Mapa UF → Destino (fallback quando cidade não mapeada) ────────────────────
+// ── Mapa UF → Destino (Usado apenas se DDD e Cidade do lead não forem informados)
 
 type UFEntry =
   | { type: 'pool' }
@@ -388,128 +423,174 @@ const UF_ROUTING: Record<string, UFEntry> = {
   MA: { type: 'pool' },
 };
 
-// ── Função principal de resolução ─────────────────────────────────────────────
+// ── FUNÇÃO CENTRAL OBRIGATÓRIA ────────────────────────────────────────────────
 
 /**
- * Resolve o destino de WhatsApp com base nos dados do lead.
- * Prioridade: DDD → cidade/UF → UF → fallback interno.
- * Mantém o mesmo vendedor para o mesmo lead via localStorage.
+ * resolveWhatsappDestination(leadData)
+ *
+ * Função única e centralizada para resolver a rota de atendimento WhatsApp.
+ * Usa como fonte de verdade o DDD preenchido pelo lead em seu telefone.
  */
 export function resolveWhatsappDestination(leadData: LeadRoutingData): RoutingDestination {
-  // Chave de cache: codigoPrevia ou fallback com phone+city+uf
-  const cacheKey =
-    leadData.codigoPrevia?.trim() ||
-    `${leadData.phone || ''}-${leadData.city || ''}-${leadData.uf || ''}`;
+  // 1. Extrair telefone/WhatsApp do lead
+  const leadPhone =
+    leadData?.phone ||
+    leadData?.telefone ||
+    leadData?.whatsapp ||
+    leadData?.celular ||
+    '';
 
-  // Verificar cache (mesmo lead → mesmo vendedor)
-  if (cacheKey) {
-    const cache = getRoutingCache();
-    if (cache[cacheKey]) return cache[cacheKey];
-  }
+  // 2. Extrair DDD do lead (ou usar DDD explícito)
+  const leadDdd = leadData?.ddd?.trim() || extractLeadDDD(leadPhone);
 
   let destination: RoutingDestination | null = null;
 
-  // ── 1. Tentar DDD ──────────────────────────────────────────────────────────
-  const ddd =
-    leadData.ddd?.trim() ||
-    extractDDDFromPhone(leadData.phone);
-
-  if (ddd) {
-    const entry = DDD_MAP[ddd];
-    if (entry) {
-      if (entry.type === 'fixed') {
-        destination = {
-          whatsapp: entry.seller.whatsapp,
-          vendedorNome: entry.seller.nome,
-          regiaoAtendimento: `${entry.seller.empresa ?? entry.seller.nome} / DDD ${ddd}`,
-          roteamentoCriterio: 'ddd',
-          roteamentoChave: ddd,
-        };
-      } else {
-        const seller = selectSellerFromPool(entry.pool, `${cacheKey}-ddd-${ddd}`);
-        destination = {
-          whatsapp: seller.whatsapp,
-          vendedorNome: seller.nome,
-          regiaoAtendimento: `SP / DDD ${ddd}`,
-          roteamentoCriterio: 'ddd',
-          roteamentoChave: ddd,
-        };
-      }
+  // 3. Roteamento por DDD (Prioridade Absoluta)
+  if (leadDdd && DDD_MAP[leadDdd]) {
+    const entry = DDD_MAP[leadDdd];
+    if (entry.type === 'fixed') {
+      destination = {
+        leadDdd,
+        whatsapp: entry.seller.whatsapp,
+        vendedorNome: entry.seller.nome,
+        regiaoAtendimento: `${entry.seller.empresa ?? entry.seller.nome} / DDD ${leadDdd}`,
+        roteamentoCriterio: 'ddd_lead',
+        roteamentoChave: leadDdd,
+        vendedor_nome: entry.seller.nome,
+        vendedor_whatsapp: entry.seller.whatsapp,
+        regiao_atendimento: `${entry.seller.empresa ?? entry.seller.nome} / DDD ${leadDdd}`,
+        roteamento_criterio: 'ddd_lead',
+        roteamento_chave: leadDdd,
+        regra_aplicada: `Regra DDD ${leadDdd} -> ${entry.seller.nome} (${entry.seller.empresa ?? 'Direto'})`,
+        isFallback: false,
+      };
+    } else {
+      const key = `${leadPhone || leadData?.codigoPrevia || 'lead'}-ddd-${leadDdd}`;
+      const seller = selectSellerFromPool(entry.pool, key);
+      destination = {
+        leadDdd,
+        whatsapp: seller.whatsapp,
+        vendedorNome: seller.nome,
+        regiaoAtendimento: `Supertech Fitness SP / DDD ${leadDdd}`,
+        roteamentoCriterio: 'ddd_lead',
+        roteamentoChave: leadDdd,
+        vendedor_nome: seller.nome,
+        vendedor_whatsapp: seller.whatsapp,
+        regiao_atendimento: `Supertech Fitness SP / DDD ${leadDdd}`,
+        roteamento_criterio: 'ddd_lead',
+        roteamento_chave: leadDdd,
+        regra_aplicada: `Regra DDD ${leadDdd} -> Pool Interno SP (${seller.nome})`,
+        isFallback: false,
+      };
     }
   }
 
-  // ── 2. Tentar cidade + UF ──────────────────────────────────────────────────
-  if (!destination && leadData.city && leadData.uf) {
-    const cityNorm = normalizeCityName(leadData.city);
-    const ufNorm   = normalizeUF(leadData.uf);
+  // 4. Cidade + UF (Apenas se DDD do lead não pôde ser extraído)
+  const city = leadData?.city || leadData?.cidade;
+  const uf = leadData?.uf;
+  if (!destination && city && uf) {
+    const cityNorm = normalizeCityName(city);
+    const ufNorm   = normalizeUF(uf);
     const cityKey  = `${cityNorm}|${ufNorm}`;
-
     const entry = CITY_ROUTING_OVERRIDES[cityKey];
     if (entry) {
       if (entry.type === 'fixed') {
         destination = {
+          leadDdd: null,
           whatsapp: entry.seller.whatsapp,
           vendedorNome: entry.seller.nome,
-          regiaoAtendimento: `${leadData.city}/${ufNorm}`,
+          regiaoAtendimento: `${entry.seller.empresa ?? entry.seller.nome} / ${city}/${ufNorm}`,
           roteamentoCriterio: 'cidade_uf',
-          roteamentoChave: `${leadData.city}-${ufNorm}`,
+          roteamentoChave: `${city}-${ufNorm}`,
+          vendedor_nome: entry.seller.nome,
+          vendedor_whatsapp: entry.seller.whatsapp,
+          regiao_atendimento: `${entry.seller.empresa ?? entry.seller.nome} / ${city}/${ufNorm}`,
+          roteamento_criterio: 'cidade_uf',
+          roteamento_chave: `${city}-${ufNorm}`,
+          regra_aplicada: `Regra Cidade/UF ${cityKey} -> ${entry.seller.nome}`,
+          isFallback: false,
         };
       } else {
-        const seller = selectSellerFromPool(INTERNAL_SELLERS, `${cacheKey}-cidade-${cityKey}`);
+        const seller = selectSellerFromPool(INTERNAL_SELLERS, `city-${cityKey}`);
         destination = {
+          leadDdd: null,
           whatsapp: seller.whatsapp,
           vendedorNome: seller.nome,
-          regiaoAtendimento: `${leadData.city}/${ufNorm}`,
+          regiaoAtendimento: `Supertech Fitness SP / ${city}/${ufNorm}`,
           roteamentoCriterio: 'cidade_uf',
-          roteamentoChave: `${leadData.city}-${ufNorm}`,
+          roteamentoChave: `${city}-${ufNorm}`,
+          vendedor_nome: seller.nome,
+          vendedor_whatsapp: seller.whatsapp,
+          regiao_atendimento: `Supertech Fitness SP / ${city}/${ufNorm}`,
+          roteamento_criterio: 'cidade_uf',
+          roteamento_chave: `${city}-${ufNorm}`,
+          regra_aplicada: `Regra Cidade/UF ${cityKey} -> Pool Interno SP (${seller.nome})`,
+          isFallback: false,
         };
       }
     }
   }
 
-  // ── 3. Tentar UF como fallback ─────────────────────────────────────────────
-  if (!destination && leadData.uf) {
-    const ufNorm = normalizeUF(leadData.uf);
-    const entry  = UF_ROUTING[ufNorm];
+  // 5. UF (Apenas se DDD do lead e Cidade+UF não estiverem disponíveis)
+  if (!destination && uf) {
+    const ufNorm = normalizeUF(uf);
+    const entry = UF_ROUTING[ufNorm];
     if (entry) {
       if (entry.type === 'fixed') {
         destination = {
+          leadDdd: null,
           whatsapp: entry.seller.whatsapp,
           vendedorNome: entry.seller.nome,
           regiaoAtendimento: `${entry.seller.empresa ?? entry.seller.nome} / ${ufNorm}`,
           roteamentoCriterio: 'uf',
           roteamentoChave: ufNorm,
+          vendedor_nome: entry.seller.nome,
+          vendedor_whatsapp: entry.seller.whatsapp,
+          regiao_atendimento: `${entry.seller.empresa ?? entry.seller.nome} / ${ufNorm}`,
+          roteamento_criterio: 'uf',
+          roteamento_chave: ufNorm,
+          regra_aplicada: `Regra UF ${ufNorm} -> ${entry.seller.nome}`,
+          isFallback: false,
         };
       } else {
-        const seller = selectSellerFromPool(INTERNAL_SELLERS, `${cacheKey}-uf-${ufNorm}`);
+        const seller = selectSellerFromPool(INTERNAL_SELLERS, `uf-${ufNorm}`);
         destination = {
+          leadDdd: null,
           whatsapp: seller.whatsapp,
           vendedorNome: seller.nome,
-          regiaoAtendimento: ufNorm,
+          regiaoAtendimento: `Supertech Fitness SP / ${ufNorm}`,
           roteamentoCriterio: 'uf',
           roteamentoChave: ufNorm,
+          vendedor_nome: seller.nome,
+          vendedor_whatsapp: seller.whatsapp,
+          regiao_atendimento: `Supertech Fitness SP / ${ufNorm}`,
+          roteamento_criterio: 'uf',
+          roteamento_chave: ufNorm,
+          regra_aplicada: `Regra UF ${ufNorm} -> Pool Interno SP (${seller.nome})`,
+          isFallback: false,
         };
       }
     }
   }
 
-  // ── 4. Fallback final: pool interno ────────────────────────────────────────
+  // 6. Fallback final (apenas se telefone/DDD, cidade e UF forem nulos/inválidos)
   if (!destination) {
-    const seller = selectSellerFromPool(INTERNAL_SELLERS, `${cacheKey}-fallback`);
+    const seller = selectSellerFromPool(INTERNAL_SELLERS, 'fallback');
     destination = {
+      leadDdd: null,
       whatsapp: seller.whatsapp,
       vendedorNome: seller.nome,
       regiaoAtendimento: 'Brasil / Atendimento Interno',
       roteamentoCriterio: 'fallback',
       roteamentoChave: 'fallback_interno',
+      vendedor_nome: seller.nome,
+      vendedor_whatsapp: seller.whatsapp,
+      regiao_atendimento: 'Brasil / Atendimento Interno',
+      roteamento_criterio: 'fallback',
+      roteamento_chave: 'fallback_interno',
+      regra_aplicada: `Fallback Interno -> ${seller.nome}`,
+      isFallback: true,
     };
-  }
-
-  // Salvar no cache para manter consistência ao reclique
-  if (cacheKey) {
-    const cache = getRoutingCache();
-    cache[cacheKey] = destination;
-    setRoutingCache(cache);
   }
 
   return destination;
@@ -517,27 +598,40 @@ export function resolveWhatsappDestination(leadData: LeadRoutingData): RoutingDe
 
 /**
  * Abre o WhatsApp com o número do destino e a mensagem codificada.
- * Usa wa.me que funciona em mobile e desktop.
+ * Emite obrigatoriamente os logs de auditoria antes da abertura.
  */
 export function openWhatsappWithDestination(
   destination: RoutingDestination,
   message: string,
+  leadData?: LeadRoutingData,
 ): void {
   const encoded = encodeURIComponent(message);
-  const url = `https://wa.me/${destination.whatsapp}?text=${encoded}`;
-  window.open(url, '_blank', 'noopener,noreferrer');
+  const whatsappUrl = `https://wa.me/${destination.whatsapp}?text=${encoded}`;
+
+  const leadPhone = leadData?.phone || leadData?.telefone || leadData?.whatsapp || '';
+  const leadDdd = destination.leadDdd || extractLeadDDD(leadPhone) || 'não identificado';
+
+  console.log("WHATSAPP ROUTING INPUT LEAD:", leadData ?? {});
+  console.log("WHATSAPP ROUTING PHONE USED:", leadPhone);
+  console.log("WHATSAPP ROUTING DDD EXTRACTED:", leadDdd);
+  console.log("WHATSAPP ROUTING DESTINATION:", destination);
+  console.log("WHATSAPP ROUTING FINAL URL:", whatsappUrl);
+
+  window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
 }
 
 /**
- * Constrói o sufixo de destino para acrescentar à mensagem da prévia.
- * Se algum dado estiver ausente, não quebra.
+ * Constrói o bloco de destino obrigatório para acrescentar à mensagem de WhatsApp.
  */
 export function buildDestinationSuffix(destination: RoutingDestination): string {
+  const dddStr = destination.leadDdd ?? destination.roteamentoChave ?? 'não identificado';
   const lines: string[] = [
     '',
-    '📍 *DESTINO DO ATENDIMENTO*',
-    `Responsável: ${destination.vendedorNome}`,
-    `Região: ${destination.regiaoAtendimento}`,
+    '📍 *Destino do atendimento:*',
+    `• DDD identificado: ${dddStr}`,
+    `• Região: ${destination.regiaoAtendimento || destination.regiao_atendimento}`,
+    `• Responsável: ${destination.vendedorNome || destination.vendedor_nome}`,
+    `• Critério de roteamento: DDD do lead`,
   ];
   return lines.join('\n');
 }

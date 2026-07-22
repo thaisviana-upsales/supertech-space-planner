@@ -237,7 +237,12 @@ export default function VisualizePage() {
 
     const suffix = buildDestinationSuffix(destination);
     const msg    = buildWAMsg(data, suffix);
-    openWhatsappWithDestination(destination, msg);
+    openWhatsappWithDestination(destination, msg, {
+      phone:        data.phone,
+      city:         data.city,
+      uf:           data.uf,
+      codigoPrevia: data.codigoPrevia,
+    });
 
     markSent();
     setSent(true);

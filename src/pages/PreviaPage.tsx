@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Eye, Send, MapPin, Package, Target, DollarSign, Clock, User, Zap } from 'lucide-react';
 import { usePlanner } from '../context/PlannerContext';
-import { resolveWhatsappDestination, openWhatsappWithDestination } from '../data/whatsappRouting';
+import { resolveWhatsappDestination, openWhatsappWithDestination, buildDestinationSuffix } from '../data/whatsappRouting';
 import StepHeader from '../components/StepHeader';
 
 function buildWhatsAppMessage(data: ReturnType<typeof usePlanner>['state']['data']): string {
@@ -34,9 +34,6 @@ export default function PreviaPage() {
   const data = state.data;
 
   function handleSendWhatsApp() {
-    const msg = buildWhatsAppMessage(data);
-
-    // ── Resolver destino pelo roteamento (DDD > cidade/UF > UF > fallback) ──
     const destination = resolveWhatsappDestination({
       phone:        data.phone,
       city:         data.city,
@@ -44,10 +41,15 @@ export default function PreviaPage() {
       codigoPrevia: data.codigoPrevia,
     });
 
-    console.log('Lead data para roteamento (PreviaPage):', { phone: data.phone, city: data.city, uf: data.uf });
-    console.log('Destino WhatsApp resolvido (PreviaPage):', destination);
+    const suffix = buildDestinationSuffix(destination);
+    const msg = buildWhatsAppMessage(data) + '\n' + suffix;
 
-    openWhatsappWithDestination(destination, msg);
+    openWhatsappWithDestination(destination, msg, {
+      phone:        data.phone,
+      city:         data.city,
+      uf:           data.uf,
+      codigoPrevia: data.codigoPrevia,
+    });
     markSent();
     setTimeout(() => {
       navigate('/confirmation');

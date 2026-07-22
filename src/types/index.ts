@@ -87,7 +87,7 @@ export interface ProjectData {
   vendedorNome?: string;
   vendedorWhatsapp?: string;
   regiaoAtendimento?: string;
-  roteamentoCriterio?: 'ddd' | 'cidade_uf' | 'uf' | 'fallback';
+  roteamentoCriterio?: 'ddd' | 'ddd_lead' | 'cidade_uf' | 'uf' | 'fallback';
   roteamentoChave?: string;
 }
 
